@@ -165,6 +165,7 @@ enum spmi_regulator_subtype {
 	SPMI_REGULATOR_SUBTYPE_ULT_HF_CTL4	= 0x10,
 	SPMI_REGULATOR_SUBTYPE_HFS430		= 0x0a,
 	SPMI_REGULATOR_SUBTYPE_VMPWM_CTL	= 0x0a,
+	SPMI_REGULATOR_SUBTYPE_HT_P150		= 0x35,
 };
 
 enum spmi_common_regulator_registers {
@@ -493,6 +494,7 @@ static struct spmi_voltage_range smps_ranges[] = {
 
 static struct spmi_voltage_range smps_vmpwm_ranges[] = {
 	SPMI_VOLTAGE_RANGE(0,  664000,  664000, 1104000, 1104000, 8000),
+	SPMI_VOLTAGE_RANGE(1,  1104000, 1104000, 3300000, 3300000, 8000),
 };
 
 static struct spmi_voltage_range ftsmps_ranges[] = {
@@ -1540,6 +1542,7 @@ static const struct regulator_ops spmi_hfs430_ops = {
 
 static const struct spmi_regulator_mapping supported_regulators[] = {
 	/*           type subtype dig_min dig_max ltype ops setpoints hpm_min */
+	SPMI_VREG(LDO,  HT_P150, 0, INF, LDO, smps_vmpwm, smps_vmpwm, 0),
 	SPMI_VREG(BUCK,  VMPWM_CTL, 0, INF, SMPS, smps_vmpwm, smps_vmpwm, 0),
 	SPMI_VREG(BUCK,  GP_CTL,   0, INF, SMPS,   smps,   smps,   100000),
 	SPMI_VREG(BUCK,  HFS430,   0, INF, HFS430, hfs430, hfs430,  10000),
