@@ -481,6 +481,7 @@ static struct spmi_voltage_range ln_ldo_ranges[] = {
 };
 
 static struct spmi_voltage_range smps_ranges[] = {
+	SPMI_VOLTAGE_RANGE(2,  670000,  670000, 990000,  990000,  8000),
 	SPMI_VOLTAGE_RANGE(0,  375000,  375000, 1562500, 1562500, 12500),
 	SPMI_VOLTAGE_RANGE(1, 1550000, 1575000, 3125000, 3125000, 25000),
 };
