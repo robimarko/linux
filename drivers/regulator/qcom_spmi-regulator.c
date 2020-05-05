@@ -1617,6 +1617,13 @@ static int spmi_regulator_init_slew_rate(struct spmi_regulator *vreg)
 	int step, delay, slew_rate, step_delay;
 	const struct spmi_voltage_range *range;
 
+	/*
+	 * Slew rate need not be initialized if
+	 * set_voltage_time_sel in the ops is not defined.
+	 */
+	if (!vreg->desc.ops->set_voltage_time_sel)
+		return 0;
+
 	ret = spmi_vreg_read(vreg, SPMI_COMMON_REG_STEP_CTRL, &reg, 1);
 	if (ret) {
 		dev_err(vreg->dev, "spmi read failed, ret=%d\n", ret);
