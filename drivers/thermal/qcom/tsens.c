@@ -326,16 +326,22 @@ static int tsens_read_irq_state(struct tsens_priv *priv, u32 hw_id,
 		ret = regmap_field_read(priv->rf[LOW_INT_MASK_0 + hw_id], &d->low_irq_mask);
 		if (ret)
 			return ret;
-		ret = regmap_field_read(priv->rf[CRIT_INT_CLEAR_0 + hw_id],
-					&d->crit_irq_clear);
-		if (ret)
-			return ret;
-		ret = regmap_field_read(priv->rf[CRIT_INT_MASK_0 + hw_id],
-					&d->crit_irq_mask);
-		if (ret)
-			return ret;
+		if (priv->feat->crit_int) {
+			ret = regmap_field_read(priv->rf[CRIT_INT_CLEAR_0 + hw_id],
+						&d->crit_irq_clear);
+			if (ret)
+				return ret;
+			ret = regmap_field_read(priv->rf[CRIT_INT_MASK_0 + hw_id],
+						&d->crit_irq_mask);
+			if (ret)
+				return ret;
 
-		d->crit_thresh = tsens_hw_to_mC(s, CRIT_THRESH_0 + hw_id);
+			d->crit_thresh = tsens_hw_to_mC(s, CRIT_THRESH_0 + hw_id);
+		} else {
+			d->crit_irq_clear = 0;
+			d->crit_irq_mask = 0;
+			d->crit_thresh = 0;
+		}
 	} else {
 		/* No mask register on older TSENS */
 		d->up_irq_mask = 0;
@@ -994,6 +1000,9 @@ static const struct of_device_id tsens_table[] = {
 	}, {
 		.compatible = "qcom,tsens-v2",
 		.data = &data_tsens_v2,
+	}, {
+		.compatible = "qcom,ipq8074-tsens",
+		.data = &data_tsens_ipq8074,
 	},
 	{}
 };
