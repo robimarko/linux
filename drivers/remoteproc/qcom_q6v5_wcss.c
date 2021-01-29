@@ -970,7 +970,7 @@ static int q6v5_alloc_memory_region(struct q6v5_wcss *wcss)
 	return 0;
 }
 
-static int ipq8074_init_clock(struct q6v5_wcss *wcss)
+static int ipq_init_clock(struct q6v5_wcss *wcss)
 {
 	int ret;
 
@@ -1173,7 +1173,7 @@ static void q6v5_wcss_remove(struct platform_device *pdev)
 }
 
 static const struct wcss_data wcss_ipq8074_res_init = {
-	.init_clock = ipq8074_init_clock,
+	.init_clock = ipq_init_clock,
 	.q6_firmware_name = "IPQ8074/q6_fw.mdt",
 	.m3_firmware_name = "IPQ8074/m3_fw.mdt",
 	.crash_reason_smem = WCSS_CRASH_REASON,
@@ -1185,6 +1185,20 @@ static const struct wcss_data wcss_ipq8074_res_init = {
 	.requires_force_stop = true,
 	.need_mem_protection = true,
 	.need_auto_boot = false,
+};
+
+static const struct wcss_data wcss_ipq6018_res_init = {
+	.init_clock = ipq_init_clock,
+	.q6_firmware_name = "IPQ6018/q6_fw.mdt",
+	.m3_firmware_name = "IPQ6018/m3_fw.mdt",
+	.crash_reason_smem = WCSS_CRASH_REASON,
+	.aon_reset_required = true,
+	.wcss_q6_reset_required = true,
+	.bcr_reset_required = false,
+	.ssr_name = "q6wcss",
+	.ops = &q6v5_wcss_ipq8074_ops,
+	.requires_force_stop = true,
+	.need_mem_protection = true,
 };
 
 static const struct wcss_data wcss_qcs404_res_init = {
@@ -1206,6 +1220,7 @@ static const struct wcss_data wcss_qcs404_res_init = {
 
 static const struct of_device_id q6v5_wcss_of_match[] = {
 	{ .compatible = "qcom,ipq8074-wcss-pil", .data = &wcss_ipq8074_res_init },
+	{ .compatible = "qcom,ipq6018-wcss-pil", .data = &wcss_ipq6018_res_init },
 	{ .compatible = "qcom,qcs404-wcss-pil", .data = &wcss_qcs404_res_init },
 	{ },
 };
