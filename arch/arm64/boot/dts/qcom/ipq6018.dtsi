@@ -455,11 +455,16 @@
 			clocks = <&gcc GCC_SYS_NOC_PCIE0_AXI_CLK>,
 				 <&gcc GCC_PCIE0_AXI_M_CLK>,
 				 <&gcc GCC_PCIE0_AXI_S_CLK>,
+				 <&gcc GCC_PCIE0_AHB_CLK>,
+				 <&gcc GCC_PCIE0_AUX_CLK>,
 				 <&gcc GCC_PCIE0_AXI_S_BRIDGE_CLK>,
 				 <&gcc PCIE0_RCHNG_CLK>;
+
 			clock-names = "iface",
 				      "axi_m",
 				      "axi_s",
+				      "ahb",
+				      "aux",
 				      "axi_bridge",
 				      "rchng";
 
@@ -662,7 +667,6 @@
 			       interrupts = <GIC_SPI 99 IRQ_TYPE_LEVEL_HIGH>;
 			       phys = <&qusb_phy_1>;
 			       phy-names = "usb2-phy";
-			       tx-fifo-resize;
 			       snps,is-utmi-l1-suspend;
 			       snps,hird-threshold = /bits/ 8 <0x0>;
 			       snps,dis_u2_susphy_quirk;
