@@ -188,7 +188,7 @@ struct qcom_pcie_resources_2_7_0 {
 };
 
 struct qcom_pcie_resources_2_9_0 {
-	struct clk_bulk_data clks[5];
+	struct clk_bulk_data clks[7];
 	struct reset_control *rst;
 };
 
@@ -1311,8 +1311,10 @@ static int qcom_pcie_get_resources_2_9_0(struct qcom_pcie *pcie)
 	res->clks[0].id = "iface";
 	res->clks[1].id = "axi_m";
 	res->clks[2].id = "axi_s";
-	res->clks[3].id = "axi_bridge";
-	res->clks[4].id = "rchng";
+	res->clks[3].id = "ahb";
+	res->clks[4].id = "aux";
+	res->clks[5].id = "axi_bridge";
+	res->clks[6].id = "rchng";
 
 	ret = devm_clk_bulk_get(dev, ARRAY_SIZE(res->clks), res->clks);
 	if (ret < 0)
@@ -1741,6 +1743,7 @@ static const struct of_device_id qcom_pcie_match[] = {
 	{ .compatible = "qcom,pcie-ipq8064", .data = &cfg_2_1_0 },
 	{ .compatible = "qcom,pcie-ipq8064-v2", .data = &cfg_2_1_0 },
 	{ .compatible = "qcom,pcie-ipq8074", .data = &cfg_2_3_3 },
+	{ .compatible = "qcom,pcie-ipq8074-gen3", .data = &cfg_2_9_0 },
 	{ .compatible = "qcom,pcie-msm8996", .data = &cfg_2_3_2 },
 	{ .compatible = "qcom,pcie-qcs404", .data = &cfg_2_4_0 },
 	{ .compatible = "qcom,pcie-sa8540p", .data = &cfg_1_9_0 },
