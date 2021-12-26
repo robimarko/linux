@@ -5,6 +5,7 @@
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/qcom,gcc-ipq8074.h>
+#include <dt-bindings/spmi/spmi.h>
 
 / {
 	model = "Qualcomm Technologies, Inc. IPQ8074";
@@ -421,6 +422,39 @@
 			interrupt-controller;
 			#interrupt-cells = <4>;
 			cell-index = <0>;
+
+			pmic@1 {
+				compatible ="qcom,spmi-pmic";
+				reg = <0x1 SPMI_USID>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				regulators {
+					compatible = "qcom,pmp8074-regulators";
+
+					s3: s3 {
+						regulator-name = "vdd_s3";
+						regulator-min-microvolt = <592000>;
+						regulator-max-microvolt = <1064000>;
+						regulator-always-on;
+						regulator-boot-on;
+					};
+
+					s4: s4 {
+						regulator-name = "vdd_s4";
+						regulator-min-microvolt = <712000>;
+						regulator-max-microvolt = <992000>;
+						regulator-always-on;
+						regulator-boot-on;
+					};
+
+					l11: l11 {
+						regulator-name = "l11";
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <3300000>;
+					};
+				};
+			};
 		};
 
 		sdhc_1: sdhci@7824900 {
