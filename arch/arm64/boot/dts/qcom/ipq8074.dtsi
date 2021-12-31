@@ -25,7 +25,7 @@
 		};
 	};
 
-	cpus {
+	cpus: cpus {
 		#address-cells = <0x1>;
 		#size-cells = <0x0>;
 
