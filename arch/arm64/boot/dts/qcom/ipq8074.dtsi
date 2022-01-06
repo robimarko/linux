@@ -120,9 +120,11 @@
 			reg = <0x0 0x4aa00000 0x0 0x00100000>;
 		};
 
-		smem_region: smem@4ab00000 {
-			no-map;
+		smem@4ab00000 {
+			compatible = "qcom,smem";
 			reg = <0x0 0x4ab00000 0x0 0x00100000>;
+			hwlocks = <&tcsr_mutex 0>;
+			no-map;
 		};
 
 		tz@4ac00000 {
@@ -150,18 +152,6 @@
 		scm {
 			compatible = "qcom,scm-ipq8074", "qcom,scm";
 		};
-	};
-
-	tcsr_mutex: hwlock@193d000 {
-		compatible = "qcom,tcsr-mutex";
-		syscon = <&tcsr_mutex_regs 0 0x80>;
-		#hwlock-cells = <1>;
-	};
-
-	smem {
-		compatible = "qcom,smem";
-		memory-region = <&smem_region>;
-		hwlocks = <&tcsr_mutex 0>;
 	};
 
 	wcss: smp2p-wcss {
@@ -976,14 +966,15 @@
 			status = "disabled";
 		};
 
+		tcsr_mutex: hwlock@1905000 {
+			compatible = "qcom,tcsr-mutex";
+			reg = <0x01905000 0x20000>;
+			#hwlock-cells = <1>;
+		};
+
 		tcsr_q6: syscon@1945000 {
 			compatible = "syscon";
 			reg = <0x01945000 0xe000>;
-		};
-
-		tcsr_mutex_regs: syscon@193d000 {
-			compatible = "syscon";
-			reg = <0x01905000 0x8000>;
 		};
 
 		apcs_glb: mailbox@b111000 {
