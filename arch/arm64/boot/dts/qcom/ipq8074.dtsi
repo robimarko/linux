@@ -15,7 +15,7 @@
 	compatible = "qcom,ipq8074";
 	interrupt-parent = <&intc>;
 
-	clocks {
+	clocks: clocks {
 		sleep_clk: sleep_clk {
 			compatible = "fixed-clock";
 			clock-frequency = <32768>;
