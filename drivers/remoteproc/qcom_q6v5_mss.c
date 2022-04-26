@@ -929,8 +929,7 @@ static void q6v5proc_halt_axi_port(struct q6v5 *qproc,
 	regmap_write(halt_map, offset + AXI_HALTREQ_REG, 0);
 }
 
-static int q6v5_mpss_init_image(struct q6v5 *qproc, const struct firmware *fw,
-				const char *fw_name)
+static int q6v5_mpss_init_image(struct q6v5 *qproc, const struct firmware *fw)
 {
 	unsigned long dma_attrs = DMA_ATTR_FORCE_CONTIGUOUS;
 	dma_addr_t phys;
@@ -941,7 +940,7 @@ static int q6v5_mpss_init_image(struct q6v5 *qproc, const struct firmware *fw,
 	void *ptr;
 	int ret;
 
-	metadata = qcom_mdt_read_metadata(fw, &size, fw_name, qproc->dev);
+	metadata = qcom_mdt_read_metadata(fw, &size);
 	if (IS_ERR(metadata))
 		return PTR_ERR(metadata);
 
@@ -1291,7 +1290,7 @@ static int q6v5_mpss_load(struct q6v5 *qproc)
 	/* Initialize the RMB validator */
 	writel(0, qproc->rmb_base + RMB_PMI_CODE_LENGTH_REG);
 
-	ret = q6v5_mpss_init_image(qproc, fw, qproc->hexagon_mdt_image);
+	ret = q6v5_mpss_init_image(qproc, fw);
 	if (ret)
 		goto release_firmware;
 
