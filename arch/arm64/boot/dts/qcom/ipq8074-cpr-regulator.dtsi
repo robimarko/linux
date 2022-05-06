@@ -32,6 +32,9 @@
 		vdd-supply = <&s3>;
 		qcom,voltage-step = <8000>;
 
+		nvmem-cells = <&cpr_efuse_revision>;
+		nvmem-cell-names = "cpr_efuse_revision";
+
 		thread@0 {
 			qcom,cpr-thread-id = <0>;
 			qcom,cpr-consecutive-up = <0>;
