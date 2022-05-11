@@ -476,6 +476,8 @@
 			mmc-hs400-1_8v;
 			bus-width = <8>;
 
+			vqmmc-supply = <&l11>;
+
 			status = "disabled";
 		};
 
