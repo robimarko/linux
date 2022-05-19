@@ -4,7 +4,7 @@
 
 &spmi_bus {
 	pmic@1 {
-		compatible = "qcom,spmi-pmic";
+		compatible = "qcom,pmp8074", "qcom,spmi-pmic";
 		reg = <0x1 SPMI_USID>;
 
 		regulators {
