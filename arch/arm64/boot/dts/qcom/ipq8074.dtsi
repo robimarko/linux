@@ -482,6 +482,7 @@
 				 <&gcc GCC_SDCC1_AHB_CLK>,
 				 <&gcc GCC_SDCC1_APPS_CLK>;
 			clock-names = "xo", "iface", "core";
+			resets = <&gcc GCC_SDCC1_BCR>;
 			max-frequency = <384000000>;
 			mmc-ddr-1_8v;
 			mmc-hs200-1_8v;
