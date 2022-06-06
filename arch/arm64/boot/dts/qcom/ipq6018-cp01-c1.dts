@@ -102,6 +102,18 @@
 	wp-gpios = <&tlmm 63 GPIO_ACTIVE_HIGH>;
 };
 
+&qusb_phy_0 {
+	status = "okay";
+};
+
+&ssphy_0 {
+	status = "okay";
+};
+
+&usb3 {
+	status = "okay";
+};
+
 &qusb_phy_1 {
 	status = "okay";
 };
