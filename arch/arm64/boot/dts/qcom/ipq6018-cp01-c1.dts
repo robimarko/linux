@@ -20,7 +20,6 @@
 
 	chosen {
 		stdout-path = "serial0:115200n8";
-		bootargs-append = " swiotlb=1";
 	};
 };
 
