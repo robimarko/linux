@@ -105,6 +105,18 @@
 	bus-width = <4>;
 };
 
+&qusb_phy_0 {
+	status = "okay";
+};
+
+&ssphy_0 {
+	status = "okay";
+};
+
+&usb3 {
+	status = "okay";
+};
+
 &qusb_phy_1 {
 	status = "okay";
 };
