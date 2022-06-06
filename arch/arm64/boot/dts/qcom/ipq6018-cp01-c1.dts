@@ -8,6 +8,7 @@
 /dts-v1/;
 
 #include "ipq6018.dtsi"
+#include <dt-bindings/gpio/gpio.h>
 
 / {
 	model = "Qualcomm Technologies, Inc. IPQ6018/AP-CP01-C1";
@@ -61,6 +62,20 @@
 		drive-strength = <8>;
 		bias-pull-down;
 	};
+
+	sdio_pins: sdio-pins {
+		cd {
+			pins = "gpio62";
+			function = "gpio";
+			bias-pull-up;
+		};
+
+		wp {
+			pins = "gpio63";
+			function = "gpio";
+			bias-pull-down;
+		};
+	};
 };
 
 &qpic_bam {
@@ -77,6 +92,15 @@
 		nand-ecc-step-size = <512>;
 		nand-bus-width = <8>;
 	};
+};
+
+&sdhc_2 {
+	status = "okay";
+
+	pinctrl-0 = <&sdio_pins>;
+	pinctrl-names = "default";
+	cd-gpios = <&tlmm 62 GPIO_ACTIVE_LOW>;
+	wp-gpios = <&tlmm 63 GPIO_ACTIVE_HIGH>;
 };
 
 &qusb_phy_1 {
