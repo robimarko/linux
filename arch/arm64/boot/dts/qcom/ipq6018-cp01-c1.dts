@@ -121,3 +121,14 @@
 &usb2 {
 	status = "okay";
 };
+
+&pcie_phy {
+	status = "okay";
+};
+
+&pcie0 {
+	status = "okay";
+
+	perst-gpios = <&tlmm 60 GPIO_ACTIVE_LOW>;
+	wake-gpios = <&tlmm 36 GPIO_ACTIVE_HIGH>;
+};
