@@ -50,6 +50,23 @@ static void ath11k_pci_bus_release(struct ath11k_base *ab)
 	mhi_device_put(ab_pci->mhi_ctrl->mhi_dev);
 }
 
+static inline u32 ath11k_pci_get_window_start(struct ath11k_base *ab, u32 offset)
+{
+	u32 window_start;
+
+	/* If offset lies within DP register range, use 3rd window */
+	if ((offset ^ HAL_SEQ_WCSS_UMAC_OFFSET) < ATH11K_PCI_WINDOW_RANGE_MASK)
+		window_start = 3 * ATH11K_PCI_WINDOW_START;
+	/* If offset lies within CE register range, use 2nd window */
+	else if ((offset ^ HAL_SEQ_WCSS_UMAC_CE0_SRC_REG(ab)) <
+		 ATH11K_PCI_WINDOW_RANGE_MASK)
+		window_start = 2 * ATH11K_PCI_WINDOW_START;
+	else
+		window_start = ATH11K_PCI_WINDOW_START;
+
+	return window_start;
+}
+
 static inline void ath11k_pci_select_window(struct ath11k_pci *ab_pci, u32 offset)
 {
 	struct ath11k_base *ab = ab_pci->ab;
@@ -70,13 +87,23 @@ static void
 ath11k_pci_window_write32(struct ath11k_base *ab, u32 offset, u32 value)
 {
 	struct ath11k_pci *ab_pci = ath11k_pci_priv(ab);
-	u32 window_start = ATH11K_PCI_WINDOW_START;
+	u32 window_start;
 
-	spin_lock_bh(&ab_pci->window_lock);
-	ath11k_pci_select_window(ab_pci, offset);
-	iowrite32(value, ab->mem + window_start +
-		  (offset & ATH11K_PCI_WINDOW_RANGE_MASK));
-	spin_unlock_bh(&ab_pci->window_lock);
+	if (ab->hw_params.static_window_map)
+		window_start = ath11k_pci_get_window_start(ab, offset);
+	else
+		window_start = ATH11K_PCI_WINDOW_START;
+
+	if (window_start == ATH11K_PCI_WINDOW_START) {
+		spin_lock_bh(&ab_pci->window_lock);
+		ath11k_pci_select_window(ab_pci, offset);
+		iowrite32(value, ab->mem + window_start +
+			  (offset & ATH11K_PCI_WINDOW_RANGE_MASK));
+		spin_unlock_bh(&ab_pci->window_lock);
+	} else {
+		iowrite32(value, ab->mem + window_start +
+			  (offset & ATH11K_PCI_WINDOW_RANGE_MASK));
+	}
 }
 
 static u32 ath11k_pci_window_read32(struct ath11k_base *ab, u32 offset)
@@ -85,11 +112,21 @@ static u32 ath11k_pci_window_read32(struct ath11k_base *ab, u32 offset)
 	u32 window_start = ATH11K_PCI_WINDOW_START;
 	u32 val;
 
-	spin_lock_bh(&ab_pci->window_lock);
-	ath11k_pci_select_window(ab_pci, offset);
-	val = ioread32(ab->mem + window_start +
-		       (offset & ATH11K_PCI_WINDOW_RANGE_MASK));
-	spin_unlock_bh(&ab_pci->window_lock);
+	if (ab->hw_params.static_window_map)
+		window_start = ath11k_pci_get_window_start(ab, offset);
+	else
+		window_start = ATH11K_PCI_WINDOW_START;
+
+	if (window_start == ATH11K_PCI_WINDOW_START) {
+		spin_lock_bh(&ab_pci->window_lock);
+		ath11k_pci_select_window(ab_pci, offset);
+		val = ioread32(ab->mem + window_start +
+			       (offset & ATH11K_PCI_WINDOW_RANGE_MASK));
+		spin_unlock_bh(&ab_pci->window_lock);
+	} else {
+		val = ioread32(ab->mem + window_start +
+			       (offset & ATH11K_PCI_WINDOW_RANGE_MASK));
+	}
 
 	return val;
 }
@@ -110,6 +147,8 @@ static const struct ath11k_pci_ops ath11k_pci_ops_qca6390 = {
 };
 
 static const struct ath11k_pci_ops ath11k_pci_ops_qcn9074 = {
+	.wakeup = NULL,
+	.release = NULL,
 	.get_msi_irq = ath11k_pci_get_msi_irq,
 	.window_write32 = ath11k_pci_window_write32,
 	.window_read32 = ath11k_pci_window_read32,
@@ -697,6 +736,7 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 	struct ath11k_base *ab;
 	struct ath11k_pci *ab_pci;
 	u32 soc_hw_version_major, soc_hw_version_minor, addr;
+	const struct ath11k_pci_ops *pci_ops;
 	int ret;
 
 	ab = ath11k_core_alloc(&pdev->dev, sizeof(*ab_pci), ATH11K_BUS_PCI);
@@ -754,10 +794,10 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 			goto err_pci_free_region;
 		}
 
-		ab->pci.ops = &ath11k_pci_ops_qca6390;
+		pci_ops = &ath11k_pci_ops_qca6390;
 		break;
 	case QCN9074_DEVICE_ID:
-		ab->pci.ops = &ath11k_pci_ops_qcn9074;
+		pci_ops = &ath11k_pci_ops_qcn9074;
 		ab->hw_rev = ATH11K_HW_QCN9074_HW10;
 		break;
 	case WCN6855_DEVICE_ID:
@@ -787,12 +827,18 @@ unsupported_wcn6855_soc:
 			goto err_pci_free_region;
 		}
 
-		ab->pci.ops = &ath11k_pci_ops_qca6390;
+		pci_ops = &ath11k_pci_ops_qca6390;
 		break;
 	default:
 		dev_err(&pdev->dev, "Unknown PCI device found: 0x%x\n",
 			pci_dev->device);
 		ret = -EOPNOTSUPP;
+		goto err_pci_free_region;
+	}
+
+	ret = ath11k_pcic_register_pci_ops(ab, pci_ops);
+	if (ret) {
+		ath11k_err(ab, "failed to register PCI ops: %d\n", ret);
 		goto err_pci_free_region;
 	}
 
