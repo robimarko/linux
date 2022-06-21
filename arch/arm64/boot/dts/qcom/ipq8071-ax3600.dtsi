@@ -482,5 +482,5 @@
 &wifi {
 	status = "okay";
 
-	qcom,board_id = <658>;
+	qcom,ath11k-board-id = <658>;
 };
