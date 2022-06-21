@@ -257,9 +257,16 @@ properties:
 
       - items:
           - enum:
+              - dynalink,dl-wrx36
+              - edgecore,eap102
+              - edimax,cax1800
               - qcom,ipq8074-hk01
               - qcom,ipq8074-hk10-c1
               - qcom,ipq8074-hk10-c2
+              - qnap,301w
+              - redmi,ax6
+              - xiaomi,ax3600
+              - xiaomi,ax9000
           - const: qcom,ipq8074
 
       - description: Qualcomm Technologies, Inc. SC7180 IDP
