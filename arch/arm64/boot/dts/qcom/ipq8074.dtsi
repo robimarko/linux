@@ -293,7 +293,6 @@
 				clocks = <&gcc GCC_PCIE0_PIPE_CLK>;
 				clock-names = "pipe0";
 				clock-output-names = "gcc_pcie0_pipe_clk_src";
-				clock-output-rate = <250000000>;
 			};
 		};
 
@@ -323,7 +322,6 @@
 				clocks = <&gcc GCC_PCIE1_PIPE_CLK>;
 				clock-names = "pipe0";
 				clock-output-names = "gcc_pcie1_pipe_clk_src";
-				clock-output-rate = <125000000>;
 			};
 		};
 
