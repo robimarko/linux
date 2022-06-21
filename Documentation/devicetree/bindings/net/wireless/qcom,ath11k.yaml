@@ -41,6 +41,14 @@ properties:
         * reg
         * reg-names
 
+  qcom,ath11k-board-id:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description:
+      Board ID to override the one returned by the firmware or the default
+      0xff if it was not set by the vendor at all.
+      It is used along the ath11k-calibration-variant to mach the correct
+      calibration data from board-2.bin.
+
   qcom,ath11k-calibration-variant:
     $ref: /schemas/types.yaml#/definitions/string
     description:
