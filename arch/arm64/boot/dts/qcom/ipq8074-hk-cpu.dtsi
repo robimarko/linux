@@ -28,7 +28,7 @@
 };
 
 &cpus {
-	cpu_opp_table: cpu_opp_table {
+	cpu_opp_table: opp-table {
 		compatible = "operating-points-v2";
 		opp-shared;
 
