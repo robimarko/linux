@@ -1,0 +1,124 @@
+# SPDX-License-Identifier: (GPL-2.0 OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/firmware/qcom,scm.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: QCOM Secure Channel Manager (SCM) bindings
+
+maintainers:
+  - Robert Marko <robimarko@gmail.com>
+
+description: |
+  Qualcomm processors include an interface to communicate to the secure firmware.
+  This interface allows for clients to request different types of actions.
+  These can include CPU power up/down, HDCP requests, loading of firmware, and
+  other assorted actions.
+
+properties:
+  compatible:
+    oneOf:
+      - items:
+          - enum:
+              - qcom,scm-apq8064
+              - qcom,scm-apq8084
+              - qcom,scm-ipq4019
+              - qcom,scm-ipq806x
+              - qcom,scm-ipq8074
+              - qcom,scm-mdm9607
+              - qcom,scm-msm8226
+              - qcom,scm-msm8660
+              - qcom,scm-msm8916
+              - qcom,scm-msm8953
+              - qcom,scm-msm8960
+              - qcom,scm-msm8974
+              - qcom,scm-msm8976
+              - qcom,scm-msm8994
+              - qcom,scm-msm8996
+              - qcom,scm-msm8998
+              - qcom,scm-qcs404
+              - qcom,scm-sc7180
+              - qcom,scm-sc7280
+              - qcom,scm-sdm845
+              - qcom,scm-sdx55
+              - qcom,scm-sm6125
+              - qcom,scm-sm6350
+              - qcom,scm-sm8150
+              - qcom,scm-sm8250
+              - qcom,scm-sm8350
+              - qcom,scm-sm8450
+          - const: qcom,scm
+
+  clocks: true
+
+  clock-names: true
+
+  '#reset-cells':
+    const: 1
+
+  qcom,dload-mode:
+    $ref: /schemas/types.yaml#/definitions/phandle-array
+    description:
+      Phandle to the TCSR hardware block and offset of the download mode control register
+
+required:
+  - compatible
+
+allOf:
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - qcom,scm-apq8064
+              - qcom,scm-msm8660
+              - qcom,scm-msm8960
+    then:
+      properties:
+        clocks:
+          items:
+            - description: SCM core clock
+        clock-names:
+          items:
+            - const: core
+
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - qcom,scm-apq8084
+              - qcom,scm-mdm9607
+              - qcom,scm-msm8916
+              - qcom,scm-msm8953
+              - qcom,scm-msm8974
+              - qcom,scm-msm8976
+    then:
+      properties:
+        clocks:
+          items:
+            - description: SCM core clock
+            - description: SCM bus clock
+            - description: SCM interface clock
+        clock-names:
+          items:
+            - const: core
+            - const: bus
+            - const: iface
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/clock/qcom,gcc-msm8916.h>
+    firmware {
+      scm {
+        compatible = "qcom,scm-msm8916", "qcom,scm";
+
+        clocks = <&gcc GCC_CRYPTO_CLK>,
+                 <&gcc GCC_CRYPTO_AXI_CLK>,
+                 <&gcc GCC_CRYPTO_AHB_CLK>;
+        clock-names = "core", "bus", "iface";
+        qcom,dload-mode = <&tcsr 0x6100>;
+      };
+    };
