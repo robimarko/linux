@@ -46,6 +46,7 @@ Required properties:
                    "qcom,pmi8998",
                    "qcom,pmk8002",
                    "qcom,pmk8350",
+                   "qcom,pmp8074",
                    "qcom,pmr735a",
                    "qcom,smb2351",
                    or generalized "qcom,spmi-pmic".
