@@ -66,6 +66,7 @@ properties:
           - qcom,pmi8998
           - qcom,pmk8350
           - qcom,pmm8155au
+          - qcom,pmp8074
           - qcom,pmr735a
           - qcom,pmr735b
           - qcom,pms405
