@@ -27,6 +27,7 @@ struct qcom_apcs_ipc {
 struct qcom_apcs_ipc_data {
 	int offset;
 	char *clk_name;
+	unsigned int max_register;
 };
 
 static const struct qcom_apcs_ipc_data ipq6018_apcs_data = {
@@ -53,7 +54,7 @@ static const struct qcom_apcs_ipc_data sdx55_apcs_data = {
 	.offset = 0x1008, .clk_name = "qcom-sdx55-acps-clk"
 };
 
-static const struct regmap_config apcs_regmap_config = {
+static struct regmap_config apcs_regmap_config = {
 	.reg_bits = 32,
 	.reg_stride = 4,
 	.val_bits = 32,
@@ -91,11 +92,16 @@ static int qcom_apcs_ipc_probe(struct platform_device *pdev)
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
+	apcs_data = of_device_get_match_data(&pdev->dev);
+	if (!apcs_data)
+		return -ENODATA;
+
+	if (apcs_data->max_register)
+		apcs_regmap_config.max_register = apcs_data->max_register;
+
 	regmap = devm_regmap_init_mmio(&pdev->dev, base, &apcs_regmap_config);
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
-
-	apcs_data = of_device_get_match_data(&pdev->dev);
 
 	apcs->regmap = regmap;
 	apcs->offset = apcs_data->offset;
