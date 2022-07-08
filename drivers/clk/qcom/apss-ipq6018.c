@@ -101,5 +101,6 @@ static struct platform_driver apss_ipq6018_driver = {
 
 module_platform_driver(apss_ipq6018_driver);
 
+MODULE_ALIAS("platform:qcom,apss-ipq6018-clk");
 MODULE_DESCRIPTION("QCOM APSS IPQ 6018 CLK Driver");
 MODULE_LICENSE("GPL v2");
