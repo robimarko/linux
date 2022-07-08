@@ -11,12 +11,8 @@
 #include <dt-bindings/leds/common.h>
 
 / {
-	#address-cells = <2>;
-	#size-cells = <2>;
-
 	model = "Xiaomi AX9000";
 	compatible = "xiaomi,ax9000", "qcom,ipq8074";
-	interrupt-parent = <&intc>;
 
 	aliases {
 		serial0 = &blsp1_uart5;
