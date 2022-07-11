@@ -3833,7 +3833,6 @@ static const struct file_operations cpr3_debug_quot_fops = {
 	.open	 = cpr3_debug_quot_open,
 	.release = cpr3_debug_quot_release,
 	.read	 = cpr3_debug_quot_read,
-	.llseek  = no_llseek,
 };
 
 /**
