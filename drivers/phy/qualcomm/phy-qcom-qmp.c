@@ -2842,6 +2842,9 @@ struct qmp_phy_cfg {
 	/* true, if PHY has secondary tx/rx lanes to be configured */
 	bool is_dual_lane_phy;
 
+	/* QMP PHY pipe clock interface rate */
+	unsigned long pipe_clock_rate;
+
 	/* true, if PCS block has no separate SW_RESET register */
 	bool no_pcs_sw_reset;
 };
@@ -5138,8 +5141,15 @@ static int phy_pipe_clk_register(struct qcom_qmp *qmp, struct device_node *np)
 
 	init.ops = &clk_fixed_rate_ops;
 
-	/* controllers using QMP phys use 125MHz pipe clock interface */
-	fixed->fixed_rate = 125000000;
+	/*
+	 * Controllers using QMP PHY-s use 125MHz pipe clock interface
+	 * unless other frequency is specified in the PHY config.
+	 */
+	if (qmp->phys[0]->cfg->pipe_clock_rate)
+		fixed->fixed_rate = qmp->phys[0]->cfg->pipe_clock_rate;
+	else
+		fixed->fixed_rate = 125000000;
+
 	fixed->hw.init = &init;
 
 	ret = devm_clk_hw_register(qmp->dev, &fixed->hw);
