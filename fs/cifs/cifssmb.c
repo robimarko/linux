@@ -1308,7 +1308,7 @@ cifs_readv_callback(struct mid_q_entry *mid)
 	switch (mid->mid_state) {
 	case MID_RESPONSE_RECEIVED:
 		/* result already set, check signature */
-		if (server->sign) {
+		if (server->sign && !(mid->mid_flags & MID_DELETED)) {
 			int rc = 0;
 
 			rc = cifs_verify_signature(&rqst, server,
