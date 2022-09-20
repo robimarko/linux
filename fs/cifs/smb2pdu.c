@@ -4145,7 +4145,7 @@ smb2_readv_callback(struct mid_q_entry *mid)
 		credits.value = le16_to_cpu(shdr->CreditRequest);
 		credits.instance = server->reconnect_instance;
 		/* result already set, check signature */
-		if (server->sign && !mid->decrypted) {
+		if (server->sign && !mid->decrypted && !(mid->mid_flags & MID_DELETED)) {
 			int rc;
 
 			rc = smb2_verify_signature(&rqst, server);
