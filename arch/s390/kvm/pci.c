@@ -58,7 +58,7 @@ static int zpci_setup_aipb(u8 nisc)
 	if (!zpci_aipb)
 		return -ENOMEM;
 
-	aift->sbv = airq_iv_create(ZPCI_NR_DEVICES, AIRQ_IV_ALLOC, 0);
+	aift->sbv = airq_iv_create(ZPCI_NR_DEVICES, AIRQ_IV_ALLOC, NULL);
 	if (!aift->sbv) {
 		rc = -ENOMEM;
 		goto free_aipb;
@@ -71,7 +71,7 @@ static int zpci_setup_aipb(u8 nisc)
 		rc = -ENOMEM;
 		goto free_sbv;
 	}
-	aift->gait = (struct zpci_gaite *)page_to_phys(page);
+	aift->gait = (struct zpci_gaite *)page_to_virt(page);
 
 	zpci_aipb->aipb.faisb = virt_to_phys(aift->sbv->vector);
 	zpci_aipb->aipb.gait = virt_to_phys(aift->gait);
@@ -373,7 +373,7 @@ static int kvm_s390_pci_aif_disable(struct zpci_dev *zdev, bool force)
 		gaite->gisc = 0;
 		gaite->aisbo = 0;
 		gaite->gisa = 0;
-		aift->kzdev[zdev->aisb] = 0;
+		aift->kzdev[zdev->aisb] = NULL;
 		/* Clear zdev info */
 		airq_iv_free_bit(aift->sbv, zdev->aisb);
 		airq_iv_release(zdev->aibv);
