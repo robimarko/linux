@@ -39,7 +39,9 @@
 #define AMD_PMC_STB_INDEX_ADDRESS	0xF8
 #define AMD_PMC_STB_INDEX_DATA		0xFC
 #define AMD_PMC_STB_PMI_0		0x03E30600
-#define AMD_PMC_STB_PREDEF		0xC6000001
+#define AMD_PMC_STB_S2IDLE_PREPARE	0xC6000001
+#define AMD_PMC_STB_S2IDLE_RESTORE	0xC6000002
+#define AMD_PMC_STB_S2IDLE_CHECK	0xC6000003
 
 /* STB S2D(Spill to DRAM) has different message port offset */
 #define STB_SPILL_TO_DRAM		0xBE
@@ -455,6 +457,44 @@ static int amd_pmc_get_smu_version(struct amd_pmc_dev *dev)
 	return 0;
 }
 
+static ssize_t smu_fw_version_show(struct device *d, struct device_attribute *attr,
+				   char *buf)
+{
+	struct amd_pmc_dev *dev = dev_get_drvdata(d);
+
+	if (!dev->major) {
+		int rc = amd_pmc_get_smu_version(dev);
+
+		if (rc)
+			return rc;
+	}
+	return sysfs_emit(buf, "%u.%u.%u\n", dev->major, dev->minor, dev->rev);
+}
+
+static ssize_t smu_program_show(struct device *d, struct device_attribute *attr,
+				   char *buf)
+{
+	struct amd_pmc_dev *dev = dev_get_drvdata(d);
+
+	if (!dev->major) {
+		int rc = amd_pmc_get_smu_version(dev);
+
+		if (rc)
+			return rc;
+	}
+	return sysfs_emit(buf, "%u\n", dev->smu_program);
+}
+
+static DEVICE_ATTR_RO(smu_fw_version);
+static DEVICE_ATTR_RO(smu_program);
+
+static struct attribute *pmc_attrs[] = {
+	&dev_attr_smu_fw_version.attr,
+	&dev_attr_smu_program.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(pmc);
+
 static int amd_pmc_idlemask_show(struct seq_file *s, void *unused)
 {
 	struct amd_pmc_dev *dev = s->private;
@@ -700,11 +740,19 @@ static void amd_pmc_s2idle_prepare(void)
 		return;
 	}
 
-	if (enable_stb) {
-		rc = amd_pmc_write_stb(pdev, AMD_PMC_STB_PREDEF);
-		if (rc)
-			dev_err(pdev->dev, "error writing to STB: %d\n", rc);
-	}
+	rc = amd_pmc_write_stb(pdev, AMD_PMC_STB_S2IDLE_PREPARE);
+	if (rc)
+		dev_err(pdev->dev, "error writing to STB: %d\n", rc);
+}
+
+static void amd_pmc_s2idle_check(void)
+{
+	struct amd_pmc_dev *pdev = &pmc;
+	int rc;
+
+	rc = amd_pmc_write_stb(pdev, AMD_PMC_STB_S2IDLE_CHECK);
+	if (rc)
+		dev_err(pdev->dev, "error writing to STB: %d\n", rc);
 }
 
 static void amd_pmc_s2idle_restore(void)
@@ -724,12 +772,9 @@ static void amd_pmc_s2idle_restore(void)
 	/* Dump the IdleMask to see the blockers */
 	amd_pmc_idlemask_read(pdev, pdev->dev, NULL);
 
-	/* Write data incremented by 1 to distinguish in stb_read */
-	if (enable_stb) {
-		rc = amd_pmc_write_stb(pdev, AMD_PMC_STB_PREDEF + 1);
-		if (rc)
-			dev_err(pdev->dev, "error writing to STB: %d\n", rc);
-	}
+	rc = amd_pmc_write_stb(pdev, AMD_PMC_STB_S2IDLE_RESTORE);
+	if (rc)
+		dev_err(pdev->dev, "error writing to STB: %d\n", rc);
 
 	/* Notify on failed entry */
 	amd_pmc_validate_deepest(pdev);
@@ -737,6 +782,7 @@ static void amd_pmc_s2idle_restore(void)
 
 static struct acpi_s2idle_dev_ops amd_pmc_s2idle_dev_ops = {
 	.prepare = amd_pmc_s2idle_prepare,
+	.check = amd_pmc_s2idle_check,
 	.restore = amd_pmc_s2idle_restore,
 };
 #endif
@@ -935,6 +981,7 @@ static struct platform_driver amd_pmc_driver = {
 	.driver = {
 		.name = "amd_pmc",
 		.acpi_match_table = amd_pmc_acpi_ids,
+		.dev_groups = pmc_groups,
 	},
 	.probe = amd_pmc_probe,
 	.remove = amd_pmc_remove,
