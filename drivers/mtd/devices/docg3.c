@@ -300,7 +300,7 @@ static void doc_write_data_area(struct docg3 *docg3, const void *buf, int len)
 }
 
 /**
- * doc_set_data_mode - Sets the flash to normal or reliable data mode
+ * doc_set_reliable_mode - Sets the flash to normal or reliable data mode
  * @docg3: the device
  *
  * The reliable data mode is a bit slower than the fast mode, but less errors
@@ -442,7 +442,7 @@ static void doc_setup_writeaddr_sector(struct docg3 *docg3, int sector, int ofs)
 }
 
 /**
- * doc_seek - Set both flash planes to the specified block, page for reading
+ * doc_read_seek - Set both flash planes to the specified block, page for reading
  * @docg3: the device
  * @block0: the first plane block index
  * @block1: the second plane block index
@@ -1951,7 +1951,7 @@ static int docg3_suspend(struct platform_device *pdev, pm_message_t state)
 }
 
 /**
- * doc_probe - Probe the IO space for a DiskOnChip G3 chip
+ * docg3_probe - Probe the IO space for a DiskOnChip G3 chip
  * @pdev: platform device
  *
  * Probes for a G3 chip at the specified IO space in the platform data
@@ -1974,9 +1974,14 @@ static int __init docg3_probe(struct platform_device *pdev)
 		dev_err(dev, "No I/O memory resource defined\n");
 		return ret;
 	}
-	base = devm_ioremap(dev, ress->start, DOC_IOSPACE_SIZE);
 
 	ret = -ENOMEM;
+	base = devm_ioremap(dev, ress->start, DOC_IOSPACE_SIZE);
+	if (!base) {
+		dev_err(dev, "devm_ioremap dev failed\n");
+		return ret;
+	}
+
 	cascade = devm_kcalloc(dev, DOC_MAX_NBFLOORS, sizeof(*cascade),
 			       GFP_KERNEL);
 	if (!cascade)
