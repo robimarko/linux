@@ -3,6 +3,7 @@
 
 TEST_PROGS := bond-break-lacpdu-tx.sh \
 	      dev_addr_lists.sh
+TEST_PROGS += bond-lladdr-target.sh
 
 TEST_FILES := lag_lib.sh
 
