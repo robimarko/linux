@@ -251,12 +251,6 @@
 #define FSR_STATE_BRINGUP_FW_ENTERED		FSR_STATE_FW_ENTERED
 
 /* ROM  status/error values */
-#define HDA_DSP_ROM_STS_MASK			GENMASK(23, 0)
-#define HDA_DSP_ROM_INIT			0x1
-#define HDA_DSP_ROM_FW_MANIFEST_LOADED		0x3
-#define HDA_DSP_ROM_FW_FW_LOADED		0x4
-#define HDA_DSP_ROM_FW_ENTERED			0x5
-#define HDA_DSP_ROM_RFW_START			0xf
 #define HDA_DSP_ROM_CSE_ERROR			40
 #define HDA_DSP_ROM_CSE_WRONG_RESPONSE		41
 #define HDA_DSP_ROM_IMR_TO_SMALL		42
@@ -441,6 +435,8 @@
 #define APL_SSP_COUNT		6
 #define CNL_SSP_COUNT		3
 #define ICL_SSP_COUNT		6
+#define TGL_SSP_COUNT		3
+#define MTL_SSP_COUNT		3
 
 /* SSP Registers */
 #define SSP_SSC1_OFFSET		0x4
