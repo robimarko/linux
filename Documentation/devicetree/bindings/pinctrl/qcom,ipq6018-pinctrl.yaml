@@ -91,7 +91,7 @@ $defs:
                 flash_strobe, gcc_gp1_clk_a, gcc_gp1_clk_b, gcc_gp2_clk_a,
                 gcc_gp2_clk_b, gcc_gp3_clk_a, gcc_gp3_clk_b, gpio, gsm0_tx0,
                 gsm0_tx1, gsm1_tx0, gsm1_tx1, gyro_accl, kpsns0, kpsns1, kpsns2,
-                ldo_en, ldo_update, mag_int, mdp_vsync, modem_tsync, m_voc,
+                ldo_en, ldo_update, mag_int, mdc, mdio, mdp_vsync, modem_tsync, m_voc,
                 nav_pps, nav_tsync, pa_indicator, pbs0, pbs1, pbs2, pri_mi2s,
                 pri_mi2s_ws, prng_rosc, pwr_crypto_enabled_a, pwr_crypto_enabled_b,
                 pwr_modem_enabled_a, pwr_modem_enabled_b, pwr_nav_enabled_a,
