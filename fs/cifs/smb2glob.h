@@ -41,4 +41,19 @@
 #define END_OF_CHAIN 4
 #define RELATED_REQUEST 8
 
+/*
+ * Use the last 8 bytes of the small buf as the padding buffer, when necessary
+ */
+#define SMB2_PADDING_BUF(buf) (buf + MAX_CIFS_SMALL_BUFFER_SIZE - 8)
+
+static inline const char *smb2_signing_algo_str(u16 algo)
+{
+	switch (algo) {
+	case SIGNING_ALG_HMAC_SHA256: return "HMAC-SHA256";
+	case SIGNING_ALG_AES_CMAC: return "AES-CMAC";
+	case SIGNING_ALG_AES_GMAC: return "AES-GMAC";
+	default: return "unknown algorithm";
+	}
+}
+
 #endif	/* _SMB2_GLOB_H */

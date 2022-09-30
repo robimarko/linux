@@ -870,8 +870,8 @@ smb311_update_preauth_hash(struct cifs_ses *ses, struct TCP_Server_Info *server,
 			   struct kvec *iov, int nvec)
 {
 	int i, rc;
-	struct sdesc *d;
 	struct smb2_hdr *hdr;
+	struct shash_desc *sha512 = NULL;
 
 	hdr = (struct smb2_hdr *)iov[0].iov_base;
 	/* neg prot are always taken */
@@ -897,40 +897,37 @@ smb311_update_preauth_hash(struct cifs_ses *ses, struct TCP_Server_Info *server,
 		return 0;
 
 ok:
-	rc = smb311_crypto_shash_allocate(server);
+	rc = cifs_alloc_hash("sha512", &sha512);
 	if (rc)
 		return rc;
 
-	d = server->secmech.sdescsha512;
-	rc = crypto_shash_init(&d->shash);
+	rc = crypto_shash_init(sha512);
 	if (rc) {
 		cifs_dbg(VFS, "%s: Could not init sha512 shash\n", __func__);
-		return rc;
+		goto out_free_hash;
 	}
 
-	rc = crypto_shash_update(&d->shash, ses->preauth_sha_hash,
+	rc = crypto_shash_update(sha512, ses->preauth_sha_hash,
 				 SMB2_PREAUTH_HASH_SIZE);
 	if (rc) {
 		cifs_dbg(VFS, "%s: Could not update sha512 shash\n", __func__);
-		return rc;
+		goto out_free_hash;
 	}
 
 	for (i = 0; i < nvec; i++) {
-		rc = crypto_shash_update(&d->shash,
-					 iov[i].iov_base, iov[i].iov_len);
+		rc = crypto_shash_update(sha512, iov[i].iov_base, iov[i].iov_len);
 		if (rc) {
 			cifs_dbg(VFS, "%s: Could not update sha512 shash\n",
 				 __func__);
-			return rc;
+			goto out_free_hash;
 		}
 	}
 
-	rc = crypto_shash_final(&d->shash, ses->preauth_sha_hash);
-	if (rc) {
+	rc = crypto_shash_final(sha512, ses->preauth_sha_hash);
+	if (rc)
 		cifs_dbg(VFS, "%s: Could not finalize sha512 shash\n",
 			 __func__);
-		return rc;
-	}
-
-	return 0;
+out_free_hash:
+	cifs_free_hash(&sha512);
+	return rc;
 }

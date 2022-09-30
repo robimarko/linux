@@ -362,6 +362,9 @@ fill_small_buf(__le16 smb2_command, struct cifs_tcon *tcon,
 	/*
 	 * smaller than SMALL_BUFFER_SIZE but bigger than fixed area of
 	 * largest operations (Create)
+	 *
+	 * Note that the last 8 bytes of the small buffer are reserved for padding when required
+	 * (see SMB2_PADDING_BUF in smb2ops.c)
 	 */
 	memset(buf, 0, 256);
 
@@ -460,7 +463,7 @@ static unsigned int
 build_signing_ctxt(struct smb2_signing_capabilities *pneg_ctxt)
 {
 	unsigned int ctxt_len = sizeof(struct smb2_signing_capabilities);
-	unsigned short num_algs = 1; /* number of signing algorithms sent */
+	unsigned short num_algs = 2; /* number of signing algorithms sent */
 
 	pneg_ctxt->ContextType = SMB2_SIGNING_CAPABILITIES;
 	/*
@@ -471,12 +474,18 @@ build_signing_ctxt(struct smb2_signing_capabilities *pneg_ctxt)
 				sizeof(struct smb2_neg_context) +
 				(num_algs * 2 /* sizeof u16 */), 8) * 8);
 	pneg_ctxt->SigningAlgorithmCount = cpu_to_le16(num_algs);
-	pneg_ctxt->SigningAlgorithms[0] = cpu_to_le16(SIGNING_ALG_AES_CMAC);
+
+	/*
+	 * Set AES-GMAC as preferred, but will fall back to AES-CMAC if server doesn't support it.
+	 * MS-SMB2 2.2.3.1.7
+	 */
+	pneg_ctxt->SigningAlgorithms[0] = SIGNING_ALG_AES_GMAC_LE;
+	pneg_ctxt->SigningAlgorithms[1] = SIGNING_ALG_AES_CMAC_LE;
+	/* SMB 3.1.1 doesn't accept HMAC-SHA256, so no need to send it */
 
 	ctxt_len += 2 /* sizeof le16 */ * num_algs;
 	ctxt_len = DIV_ROUND_UP(ctxt_len, 8) * 8;
 	return ctxt_len;
-	/* TBD add SIGNING_ALG_AES_GMAC and/or SIGNING_ALG_HMAC_SHA256 */
 }
 
 static void
@@ -603,13 +612,10 @@ assemble_neg_contexts(struct smb2_negotiate_req *req,
 		neg_context_count++;
 	}
 
-	if (enable_negotiate_signing) {
-		ctxt_len = build_signing_ctxt((struct smb2_signing_capabilities *)
-				pneg_ctxt);
-		*total_len += ctxt_len;
-		pneg_ctxt += ctxt_len;
-		neg_context_count++;
-	}
+	ctxt_len = build_signing_ctxt((struct smb2_signing_capabilities *)pneg_ctxt);
+	*total_len += ctxt_len;
+	pneg_ctxt += ctxt_len;
+	neg_context_count++;
 
 	/* check for and add transport_capabilities and signing capabilities */
 	req->NegotiateContextCount = cpu_to_le16(neg_context_count);
@@ -722,8 +728,8 @@ static void decode_signing_ctx(struct TCP_Server_Info *server,
 
 	server->signing_negotiated = true;
 	server->signing_algorithm = le16_to_cpu(pctxt->SigningAlgorithms[0]);
-	cifs_dbg(FYI, "signing algorithm %d chosen\n",
-		     server->signing_algorithm);
+	cifs_dbg(FYI, "negotiated signing algorithm '%s'\n",
+		 smb2_signing_algo_str(server->signing_algorithm));
 }
 
 
@@ -1080,12 +1086,34 @@ SMB2_negotiate(const unsigned int xid,
 	}
 
 	if (rsp->DialectRevision == cpu_to_le16(SMB311_PROT_ID)) {
+		server->signing_algorithm = SIGNING_ALG_AES_CMAC;
+		server->signing_negotiated = false;
+
 		if (rsp->NegotiateContextCount)
 			rc = smb311_decode_neg_context(rsp, server,
 						       rsp_iov.iov_len);
 		else
 			cifs_server_dbg(VFS, "Missing expected negotiate contexts\n");
+
+		/*
+		 * Some servers will not send a SMB2_SIGNING_CAPABILITIES context response (*),
+		 * so use AES-CMAC signing algorithm as it is expected to be accepted.
+		 * See MS-SMB2 note <125> Section 3.2.4.2.2.2
+		 */
+		if (!server->signing_negotiated)
+			cifs_dbg(VFS, "signing capabilities were not negotiated, using AES-CMAC for message signing\n");
+	} else if (server->dialect >= SMB30_PROT_ID) {
+		server->signing_algorithm = SIGNING_ALG_AES_CMAC;
+	} else if (server->dialect >= SMB20_PROT_ID) {
+		server->signing_algorithm = SIGNING_ALG_HMAC_SHA256;
 	}
+
+	rc = smb2_init_secmechs(server);
+	if (rc) {
+		cifs_dbg(VFS, "Failed to initialize secmechs, rc=%d\n", rc);
+		goto neg_exit;
+	}
+
 neg_exit:
 	free_rsp_buf(resp_buftype, rsp);
 	return rc;
@@ -1169,9 +1197,9 @@ int smb3_validate_negotiate(const unsigned int xid, struct cifs_tcon *tcon)
 		pneg_inbuf->Dialects[0] =
 			cpu_to_le16(server->vals->protocol_id);
 		pneg_inbuf->DialectCount = cpu_to_le16(1);
-		/* structure is big enough for 3 dialects, sending only 1 */
+		/* structure is big enough for 4 dialects, sending only 1 */
 		inbuflen = sizeof(*pneg_inbuf) -
-				sizeof(pneg_inbuf->Dialects[0]) * 2;
+				sizeof(pneg_inbuf->Dialects[0]) * 3;
 	}
 
 	rc = SMB2_ioctl(xid, tcon, NO_FILE_ID, NO_FILE_ID,
@@ -1641,8 +1669,21 @@ SMB2_sess_auth_rawntlmssp_authenticate(struct SMB2_sess_data *sess_data)
 	}
 
 	rc = SMB2_sess_establish_session(sess_data);
-#ifdef CONFIG_CIFS_DEBUG_DUMP_KEYS
+	if (rc)
+		goto out;
+
 	if (ses->server->dialect < SMB30_PROT_ID) {
+		rc = crypto_shash_setkey(server->secmech.sign.shash->tfm,
+					 ses->auth_key.response, SMB2_NTLMV2_SESSKEY_SIZE);
+		if (!rc)
+			rc = crypto_shash_setkey(server->secmech.verify.shash->tfm,
+						 ses->auth_key.response, SMB2_NTLMV2_SESSKEY_SIZE);
+		if (rc) {
+			cifs_dbg(VFS, "%s: Failed to set HMAC-SHA256 signing keys, rc=%d\n",
+				 __func__, rc);
+			goto out;
+		}
+#ifdef CONFIG_CIFS_DEBUG_DUMP_KEYS
 		cifs_dbg(VFS, "%s: dumping generated SMB2 session keys\n", __func__);
 		/*
 		 * The session id is opaque in terms of endianness, so we can't
@@ -1654,8 +1695,10 @@ SMB2_sess_auth_rawntlmssp_authenticate(struct SMB2_sess_data *sess_data)
 			 SMB2_NTLMV2_SESSKEY_SIZE, ses->auth_key.response);
 		cifs_dbg(VFS, "Signing Key   %*ph\n",
 			 SMB3_SIGN_KEY_SIZE, ses->auth_key.response);
+#else /* CONFIG_CIFS_DEBUG_DUMP_KEYS */
+		memzero_explicit(ses->auth_key.response, SMB2_NTLMV2_SESSKEY_SIZE);
+#endif /* !CONFIG_CIFS_DEBUG_DUMP_KEYS */
 	}
-#endif
 out:
 	kfree(ntlmssp_blob);
 	SMB2_sess_free_buffer(sess_data);
@@ -1930,7 +1973,7 @@ SMB2_tcon(const unsigned int xid, struct cifs_ses *ses, const char *tree,
 	tcon->capabilities = rsp->Capabilities; /* we keep caps little endian */
 	tcon->maximal_access = le32_to_cpu(rsp->MaximalAccess);
 	tcon->tid = le32_to_cpu(rsp->hdr.Id.SyncId.TreeId);
-	strscpy(tcon->treeName, tree, sizeof(tcon->treeName));
+	strscpy(tcon->tree_name, tree, sizeof(tcon->tree_name));
 
 	if ((rsp->Capabilities & SMB2_SHARE_CAP_DFS) &&
 	    ((tcon->share_flags & SHI1005_FLAGS_DFS) == 0))
@@ -1973,6 +2016,7 @@ SMB2_tdis(const unsigned int xid, struct cifs_tcon *tcon)
 	if (!ses || !(ses->server))
 		return -EIO;
 
+	trace_smb3_tdis_enter(xid, tcon->tid, ses->Suid, tcon->tree_name);
 	spin_lock(&ses->chan_lock);
 	if ((tcon->need_reconnect) ||
 	    (CIFS_ALL_CHANS_NEED_RECONNECT(tcon->ses))) {
@@ -2004,8 +2048,11 @@ SMB2_tdis(const unsigned int xid, struct cifs_tcon *tcon)
 	rc = cifs_send_recv(xid, ses, ses->server,
 			    &rqst, &resp_buf_type, flags, &rsp_iov);
 	cifs_small_buf_release(req);
-	if (rc)
+	if (rc) {
 		cifs_stats_fail_inc(tcon, SMB2_TREE_DISCONNECT_HE);
+		trace_smb3_tdis_err(xid, tcon->tid, ses->Suid, rc);
+	}
+	trace_smb3_tdis_done(xid, tcon->tid, ses->Suid);
 
 	return rc;
 }
@@ -2674,7 +2721,7 @@ int smb311_posix_mkdir(const unsigned int xid, struct inode *inode,
 		req->hdr.Flags |= SMB2_FLAGS_DFS_OPERATIONS;
 		rc = alloc_path_with_tree_prefix(&copy_path, &copy_size,
 						 &name_len,
-						 tcon->treeName, utf16_path);
+						 tcon->tree_name, utf16_path);
 		if (rc)
 			goto err_free_req;
 
@@ -2816,7 +2863,7 @@ SMB2_open_init(struct cifs_tcon *tcon, struct TCP_Server_Info *server,
 		req->hdr.Flags |= SMB2_FLAGS_DFS_OPERATIONS;
 		rc = alloc_path_with_tree_prefix(&copy_path, &copy_size,
 						 &name_len,
-						 tcon->treeName, path);
+						 tcon->tree_name, path);
 		if (rc)
 			return rc;
 		req->NameLength = cpu_to_le16(name_len * 2);
@@ -2952,7 +2999,8 @@ SMB2_open_free(struct smb_rqst *rqst)
 	if (rqst && rqst->rq_iov) {
 		cifs_small_buf_release(rqst->rq_iov[0].iov_base);
 		for (i = 1; i < rqst->rq_nvec; i++)
-			if (rqst->rq_iov[i].iov_base != smb2_padding)
+			if (rqst->rq_iov[i].iov_base !=
+			    SMB2_PADDING_BUF(rqst->rq_iov[0].iov_base))
 				kfree(rqst->rq_iov[i].iov_base);
 	}
 }
@@ -3011,7 +3059,7 @@ SMB2_open(const unsigned int xid, struct cifs_open_parms *oparms, __le16 *path,
 				    oparms->create_options, oparms->desired_access, rc);
 		if (rc == -EREMCHG) {
 			pr_warn_once("server share %s deleted\n",
-				     tcon->treeName);
+				     tcon->tree_name);
 			tcon->need_reconnect = true;
 		}
 		goto creat_exit;
@@ -3146,7 +3194,8 @@ SMB2_ioctl_free(struct smb_rqst *rqst)
 	if (rqst && rqst->rq_iov) {
 		cifs_small_buf_release(rqst->rq_iov[0].iov_base); /* request */
 		for (i = 1; i < rqst->rq_nvec; i++)
-			if (rqst->rq_iov[i].iov_base != smb2_padding)
+			if (rqst->rq_iov[i].iov_base !=
+			    SMB2_PADDING_BUF(rqst->rq_iov[0].iov_base))
 				kfree(rqst->rq_iov[i].iov_base);
 	}
 }
@@ -4429,7 +4478,7 @@ smb2_writev_callback(struct mid_q_entry *mid)
 				     wdata->bytes, wdata->result);
 		if (wdata->result == -ENOSPC)
 			pr_warn_once("Out of space writing to %s\n",
-				     tcon->treeName);
+				     tcon->tree_name);
 	} else
 		trace_smb3_write_done(0 /* no xid */,
 				      wdata->cfile->fid.persistent_fid,

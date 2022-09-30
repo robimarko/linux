@@ -1327,7 +1327,7 @@ SMB2_request_res_key(const unsigned int xid, struct cifs_tcon *tcon,
 			CIFSMaxBufSize, (char **)&res_key, &ret_data_len);
 
 	if (rc == -EOPNOTSUPP) {
-		pr_warn_once("Server share %s does not support copy range\n", tcon->treeName);
+		pr_warn_once("Server share %s does not support copy range\n", tcon->tree_name);
 		goto req_res_key_exit;
 	} else if (rc) {
 		cifs_tcon_dbg(VFS, "refcpy ioctl error %d getting resume key\n", rc);
@@ -2289,7 +2289,7 @@ smb2_is_network_name_deleted(char *buf, struct TCP_Server_Info *server)
 				spin_unlock(&tcon->tc_lock);
 				spin_unlock(&cifs_tcp_ses_lock);
 				pr_warn_once("Server share %s deleted.\n",
-					     tcon->treeName);
+					     tcon->tree_name);
 				return;
 			}
 		}
@@ -2323,8 +2323,6 @@ smb2_set_related(struct smb_rqst *rqst)
 	shdr->Flags |= SMB2_FLAGS_RELATED_OPERATIONS;
 }
 
-char smb2_padding[7] = {0, 0, 0, 0, 0, 0, 0};
-
 void
 smb2_set_next_command(struct cifs_tcon *tcon, struct smb_rqst *rqst)
 {
@@ -2352,7 +2350,7 @@ smb2_set_next_command(struct cifs_tcon *tcon, struct smb_rqst *rqst)
 		 * If we do not have encryption then we can just add an extra
 		 * iov for the padding.
 		 */
-		rqst->rq_iov[rqst->rq_nvec].iov_base = smb2_padding;
+		rqst->rq_iov[rqst->rq_nvec].iov_base = SMB2_PADDING_BUF(rqst->rq_iov[0].iov_base);
 		rqst->rq_iov[rqst->rq_nvec].iov_len = num_padding;
 		rqst->rq_nvec++;
 		len += num_padding;
@@ -2498,7 +2496,7 @@ smb2_query_info_compound(const unsigned int xid, struct cifs_tcon *tcon,
 		if (rc == -EREMCHG) {
 			tcon->need_reconnect = true;
 			pr_warn_once("server share %s deleted\n",
-				     tcon->treeName);
+				     tcon->tree_name);
 		}
 		goto qic_exit;
 	}
@@ -4234,21 +4232,14 @@ static inline void smb2_sg_set_buf(struct scatterlist *sg, const void *buf,
 	sg_set_page(sg, addr, buflen, offset_in_page(buf));
 }
 
-/* Assumes the first rqst has a transform header as the first iov.
- * I.e.
- * rqst[0].rq_iov[0]  is transform header
- * rqst[0].rq_iov[1+] data to be encrypted/decrypted
- * rqst[1+].rq_iov[0+] data to be encrypted/decrypted
- */
-static struct scatterlist *
-init_sg(int num_rqst, struct smb_rqst *rqst, u8 *sign)
+struct scatterlist *
+smb3_init_sg(int num_rqst, struct smb_rqst *rqst, u8 *sign)
 {
 	unsigned int sg_len;
 	struct scatterlist *sg;
 	unsigned int i;
 	unsigned int j;
 	unsigned int idx = 0;
-	int skip;
 
 	sg_len = 1;
 	for (i = 0; i < num_rqst; i++)
@@ -4261,15 +4252,10 @@ init_sg(int num_rqst, struct smb_rqst *rqst, u8 *sign)
 	sg_init_table(sg, sg_len);
 	for (i = 0; i < num_rqst; i++) {
 		for (j = 0; j < rqst[i].rq_nvec; j++) {
-			/*
-			 * The first rqst has a transform header where the
-			 * first 20 bytes are not part of the encrypted blob
-			 */
-			skip = (i == 0) && (j == 0) ? 20 : 0;
 			smb2_sg_set_buf(&sg[idx++],
-					rqst[i].rq_iov[j].iov_base + skip,
-					rqst[i].rq_iov[j].iov_len - skip);
-			}
+					rqst[i].rq_iov[j].iov_base,
+					rqst[i].rq_iov[j].iov_len);
+		}
 
 		for (j = 0; j < rqst[i].rq_npages; j++) {
 			unsigned int len, offset;
@@ -4282,30 +4268,6 @@ init_sg(int num_rqst, struct smb_rqst *rqst, u8 *sign)
 	return sg;
 }
 
-static int
-smb2_get_enc_key(struct TCP_Server_Info *server, __u64 ses_id, int enc, u8 *key)
-{
-	struct cifs_ses *ses;
-	u8 *ses_enc_key;
-
-	spin_lock(&cifs_tcp_ses_lock);
-	list_for_each_entry(server, &cifs_tcp_ses_list, tcp_ses_list) {
-		list_for_each_entry(ses, &server->smb_ses_list, smb_ses_list) {
-			if (ses->Suid == ses_id) {
-				spin_lock(&ses->ses_lock);
-				ses_enc_key = enc ? ses->smb3encryptionkey :
-					ses->smb3decryptionkey;
-				memcpy(key, ses_enc_key, SMB3_ENC_DEC_KEY_SIZE);
-				spin_unlock(&ses->ses_lock);
-				spin_unlock(&cifs_tcp_ses_lock);
-				return 0;
-			}
-		}
-	}
-	spin_unlock(&cifs_tcp_ses_lock);
-
-	return -EAGAIN;
-}
 /*
  * Encrypt or decrypt @rqst message. @rqst[0] has the following format:
  * iov[0]   - transform header (associate data),
@@ -4323,7 +4285,6 @@ crypt_message(struct TCP_Server_Info *server, int num_rqst,
 	int rc = 0;
 	struct scatterlist *sg;
 	u8 sign[SMB2_SIGNATURE_SIZE] = {};
-	u8 key[SMB3_ENC_DEC_KEY_SIZE];
 	struct aead_request *req;
 	char *iv;
 	unsigned int iv_len;
@@ -4331,38 +4292,13 @@ crypt_message(struct TCP_Server_Info *server, int num_rqst,
 	struct crypto_aead *tfm;
 	unsigned int crypt_len = le32_to_cpu(tr_hdr->OriginalMessageSize);
 
-	rc = smb2_get_enc_key(server, le64_to_cpu(tr_hdr->SessionId), enc, key);
-	if (rc) {
-		cifs_server_dbg(VFS, "%s: Could not get %scryption key\n", __func__,
-			 enc ? "en" : "de");
-		return rc;
+	/* sanity check -- TFMs were allocated after negotiate protocol */
+	if (unlikely(!server->secmech.enc || !server->secmech.dec)) {
+		cifs_server_dbg(VFS, "%s: crypto TFMs are NULL\n", __func__);
+		return -EIO;
 	}
 
-	rc = smb3_crypto_aead_allocate(server);
-	if (rc) {
-		cifs_server_dbg(VFS, "%s: crypto alloc failed\n", __func__);
-		return rc;
-	}
-
-	tfm = enc ? server->secmech.ccmaesencrypt :
-						server->secmech.ccmaesdecrypt;
-
-	if ((server->cipher_type == SMB2_ENCRYPTION_AES256_CCM) ||
-		(server->cipher_type == SMB2_ENCRYPTION_AES256_GCM))
-		rc = crypto_aead_setkey(tfm, key, SMB3_GCM256_CRYPTKEY_SIZE);
-	else
-		rc = crypto_aead_setkey(tfm, key, SMB3_GCM128_CRYPTKEY_SIZE);
-
-	if (rc) {
-		cifs_server_dbg(VFS, "%s: Failed to set aead key %d\n", __func__, rc);
-		return rc;
-	}
-
-	rc = crypto_aead_setauthsize(tfm, SMB2_SIGNATURE_SIZE);
-	if (rc) {
-		cifs_server_dbg(VFS, "%s: Failed to set authsize %d\n", __func__, rc);
-		return rc;
-	}
+	tfm = enc ? server->secmech.enc : server->secmech.dec;
 
 	req = aead_request_alloc(tfm, GFP_KERNEL);
 	if (!req) {
@@ -4375,7 +4311,17 @@ crypt_message(struct TCP_Server_Info *server, int num_rqst,
 		crypt_len += SMB2_SIGNATURE_SIZE;
 	}
 
-	sg = init_sg(num_rqst, rqst, sign);
+	/*
+	 * Skip the first 20 bytes of the first iov of the first request as they're not part of the
+	 * encrypted blob
+	 */
+	rqst[0].rq_iov[0].iov_base += 20;
+	rqst[0].rq_iov[0].iov_len -= 20;
+	sg = smb3_init_sg(num_rqst, rqst, sign);
+	/* Rewind those 20 bytes before going any further */
+	rqst[0].rq_iov[0].iov_base -= 20;
+	rqst[0].rq_iov[0].iov_len += 20;
+
 	if (!sg) {
 		cifs_server_dbg(VFS, "%s: Failed to init sg\n", __func__);
 		rc = -ENOMEM;
@@ -5263,7 +5209,6 @@ struct smb_version_operations smb20_operations = {
 	.get_lease_key = smb2_get_lease_key,
 	.set_lease_key = smb2_set_lease_key,
 	.new_lease_key = smb2_new_lease_key,
-	.calc_signature = smb2_calc_signature,
 	.is_read_op = smb2_is_read_op,
 	.set_oplock_level = smb2_set_oplock_level,
 	.create_lease_buf = smb2_create_lease_buf,
@@ -5364,7 +5309,6 @@ struct smb_version_operations smb21_operations = {
 	.get_lease_key = smb2_get_lease_key,
 	.set_lease_key = smb2_set_lease_key,
 	.new_lease_key = smb2_new_lease_key,
-	.calc_signature = smb2_calc_signature,
 	.is_read_op = smb21_is_read_op,
 	.set_oplock_level = smb21_set_oplock_level,
 	.create_lease_buf = smb2_create_lease_buf,
@@ -5471,7 +5415,6 @@ struct smb_version_operations smb30_operations = {
 	.set_lease_key = smb2_set_lease_key,
 	.new_lease_key = smb2_new_lease_key,
 	.generate_signingkey = generate_smb30signingkey,
-	.calc_signature = smb3_calc_signature,
 	.set_integrity  = smb3_set_integrity,
 	.is_read_op = smb21_is_read_op,
 	.set_oplock_level = smb3_set_oplock_level,
@@ -5585,7 +5528,6 @@ struct smb_version_operations smb311_operations = {
 	.set_lease_key = smb2_set_lease_key,
 	.new_lease_key = smb2_new_lease_key,
 	.generate_signingkey = generate_smb311signingkey,
-	.calc_signature = smb3_calc_signature,
 	.set_integrity  = smb3_set_integrity,
 	.is_read_op = smb21_is_read_op,
 	.set_oplock_level = smb3_set_oplock_level,

@@ -153,26 +153,51 @@ struct session_key {
 	char *response;
 };
 
-/* crypto security descriptor definition */
-struct sdesc {
-	struct shash_desc shash;
-	char ctx[];
-};
-
-/* crypto hashing related structure/fields, not specific to a sec mech */
+struct smb_rqst;
+struct TCP_Server_Info;
+/**
+ * cifs_secmech - Crypto hashing related structure/fields, not specific to one mechanism
+ * @sign.shash: SHASH descriptor for signing TFM
+ * @sign.aead: AEAD TFM for signing
+ * @sign_wait: Completion struct for signing operations
+ * @verify.shash: SHASH descriptor for verifying TFM
+ * @verify.aead: AEAD TFM for verifying
+ * @verify_wait: Completion struct for verifying operations
+ * @calc_signature: Signature calculation function to be used.
+ * @enc: AEAD TFM for SMB3+ encryption
+ * @dec: AEAD TFM for SMB3+ decryption
+ *
+ * @sign and @verify TFMs are allocated per-server, and the negotiated dialect will dictate which
+ * algorithm to use:
+ * - MD5 for SMB1
+ * - HMAC-SHA256 for SMB2
+ * - AES-CMAC for SMB3
+ * - AES-GMAC for SMB3.1.1
+ *
+ * The completion structs @sign_wait and @verify_wait are required so that we can serialize access
+ * to the AEAD TFMs, since they're asynchronous by design.  Using a stack-allocated structure could
+ * cause concurrent access to the TFMs to overwrite the completion status of a previous operation.
+ *
+ * @enc and @dec holds the encryption/decryption TFMs, also allocated per server, where each will
+ * be either AES-CCM or AES-GCM.
+ */
 struct cifs_secmech {
-	struct crypto_shash *hmacmd5; /* hmac-md5 hash function */
-	struct crypto_shash *md5; /* md5 hash function */
-	struct crypto_shash *hmacsha256; /* hmac-sha256 hash function */
-	struct crypto_shash *cmacaes; /* block-cipher based MAC function */
-	struct crypto_shash *sha512; /* sha512 hash function */
-	struct sdesc *sdeschmacmd5;  /* ctxt to generate ntlmv2 hash, CR1 */
-	struct sdesc *sdescmd5; /* ctxt to generate cifs/smb signature */
-	struct sdesc *sdeschmacsha256;  /* ctxt to generate smb2 signature */
-	struct sdesc *sdesccmacaes;  /* ctxt to generate smb3 signature */
-	struct sdesc *sdescsha512; /* ctxt to generate smb3.11 signing key */
-	struct crypto_aead *ccmaesencrypt; /* smb3 encryption aead */
-	struct crypto_aead *ccmaesdecrypt; /* smb3 decryption aead */
+	union {
+		struct shash_desc *shash;
+		struct crypto_aead *aead;
+	} sign;
+	struct crypto_wait sign_wait;
+
+	union {
+		struct shash_desc *shash;
+		struct crypto_aead *aead;
+	} verify;
+	struct crypto_wait verify_wait;
+
+	int (*calc_signature)(struct smb_rqst *rqst, struct TCP_Server_Info *server, bool verify);
+
+	struct crypto_aead *enc;
+	struct crypto_aead *dec;
 };
 
 /* per smb session structure/fields */
@@ -444,8 +469,6 @@ struct smb_version_operations {
 	void (*new_lease_key)(struct cifs_fid *);
 	int (*generate_signingkey)(struct cifs_ses *ses,
 				   struct TCP_Server_Info *server);
-	int (*calc_signature)(struct smb_rqst *, struct TCP_Server_Info *,
-				bool allocate_crypto);
 	int (*set_integrity)(const unsigned int, struct cifs_tcon *tcon,
 			     struct cifsFileInfo *src_file);
 	int (*enum_snapshots)(const unsigned int xid, struct cifs_tcon *tcon,
@@ -1149,7 +1172,7 @@ struct cifs_tcon {
 	struct list_head openFileList;
 	spinlock_t open_file_lock; /* protects list above */
 	struct cifs_ses *ses;	/* pointer to session associated with */
-	char treeName[MAX_TREE_SIZE + 1]; /* UNC name of resource in ASCII */
+	char tree_name[MAX_TREE_SIZE + 1]; /* UNC name of resource in ASCII */
 	char *nativeFileSystem;
 	char *password;		/* for share-level security */
 	__u32 tid;		/* The 4 byte tree id */
@@ -1228,7 +1251,7 @@ struct cifs_tcon {
 	struct fscache_volume *fscache;	/* cookie for share */
 #endif
 	struct list_head pending_opens;	/* list of incomplete opens */
-	struct cached_fid *cfid; /* Cached root fid */
+	struct cached_fids *cfids;
 	/* BB add field for back pointer to sb struct(s)? */
 #ifdef CONFIG_CIFS_DFS_UPCALL
 	struct list_head ulist; /* cache update list */
@@ -2008,7 +2031,10 @@ extern unsigned int global_secflags;	/* if on, session setup sent
 extern unsigned int sign_CIFS_PDUs;  /* enable smb packet signing */
 extern bool enable_gcm_256; /* allow optional negotiate of strongest signing (aes-gcm-256) */
 extern bool require_gcm_256; /* require use of strongest signing (aes-gcm-256) */
-extern bool enable_negotiate_signing; /* request use of faster (GMAC) signing if available */
+extern bool enable_negotiate_signing; /*
+				       * request use of faster (GMAC) signing if available
+				       * XXX: deprecated, remove it at some point
+				       */
 extern bool linuxExtEnabled;/*enable Linux/Unix CIFS extensions*/
 extern unsigned int CIFSMaxBufSize;  /* max size not including hdr */
 extern unsigned int cifs_min_rcv;    /* min size of big ntwrk buf pool */
