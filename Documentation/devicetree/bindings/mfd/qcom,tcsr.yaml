@@ -36,10 +36,6 @@ properties:
               - qcom,tcsr-msm8974
               - qcom,tcsr-msm8996
           - const: syscon
-      - items:
-          - const: qcom,tcsr-ipq6018
-          - const: syscon
-          - const: simple-mfd
 
   reg:
     maxItems: 1
