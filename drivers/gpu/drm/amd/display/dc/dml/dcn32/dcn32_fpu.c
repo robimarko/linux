@@ -674,9 +674,10 @@ static bool dcn32_assign_subvp_pipe(struct dc *dc,
 		 * - Not able to switch in vactive naturally (switching in active means the
 		 *   DET provides enough buffer to hide the P-State switch latency -- trying
 		 *   to combine this with SubVP can cause issues with the scheduling).
+		 * - Not TMZ surface
 		 */
 		if (pipe->plane_state && !pipe->top_pipe &&
-				pipe->stream->mall_stream_config.type == SUBVP_NONE && refresh_rate < 120 &&
+				pipe->stream->mall_stream_config.type == SUBVP_NONE && refresh_rate < 120 && !pipe->plane_state->address.tmz_surface &&
 				vba->ActiveDRAMClockChangeLatencyMarginPerState[vba->VoltageLevel][vba->maxMpcComb][vba->pipe_plane[pipe_idx]] <= 0) {
 			while (pipe) {
 				num_pipes++;
@@ -1119,7 +1120,9 @@ static void dcn32_full_validate_bw_helper(struct dc *dc,
 	    dc->debug.force_subvp_mclk_switch)) {
 
 		dcn32_merge_pipes_for_subvp(dc, context);
-		// to re-initialize viewport after the pipe merge
+		memset(merge, 0, MAX_PIPES * sizeof(bool));
+
+		/* to re-initialize viewport after the pipe merge */
 		for (i = 0; i < dc->res_pool->pipe_count; i++) {
 			struct pipe_ctx *pipe_ctx = &context->res_ctx.pipe_ctx[i];
 
@@ -1587,6 +1590,28 @@ bool dcn32_internal_validate_bw(struct dc *dc,
 			pipe->prev_odm_pipe->next_odm_pipe = pipe->next_odm_pipe;
 			if (pipe->next_odm_pipe)
 				pipe->next_odm_pipe->prev_odm_pipe = pipe->prev_odm_pipe;
+
+			/*2:1ODM+MPC Split MPO to Single Pipe + MPC Split MPO*/
+			if (pipe->bottom_pipe) {
+				if (pipe->bottom_pipe->prev_odm_pipe || pipe->bottom_pipe->next_odm_pipe) {
+					/*MPC split rules will handle this case*/
+					pipe->bottom_pipe->top_pipe = NULL;
+				} else {
+					if (pipe->prev_odm_pipe->bottom_pipe) {
+						/* 3 plane MPO*/
+						pipe->bottom_pipe->top_pipe = pipe->prev_odm_pipe->bottom_pipe;
+						pipe->prev_odm_pipe->bottom_pipe->bottom_pipe = pipe->bottom_pipe;
+					} else {
+						/* 2 plane MPO*/
+						pipe->bottom_pipe->top_pipe = pipe->prev_odm_pipe;
+						pipe->prev_odm_pipe->bottom_pipe = pipe->bottom_pipe;
+					}
+				}
+			}
+
+			if (pipe->top_pipe) {
+				pipe->top_pipe->bottom_pipe = NULL;
+			}
 
 			pipe->bottom_pipe = NULL;
 			pipe->next_odm_pipe = NULL;
