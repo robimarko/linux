@@ -146,7 +146,8 @@ retry:
 #define ACCESS_FILE ( \
 	LANDLOCK_ACCESS_FS_EXECUTE | \
 	LANDLOCK_ACCESS_FS_WRITE_FILE | \
-	LANDLOCK_ACCESS_FS_READ_FILE)
+	LANDLOCK_ACCESS_FS_READ_FILE | \
+	LANDLOCK_ACCESS_FS_TRUNCATE)
 /* clang-format on */
 
 /*
@@ -712,7 +713,7 @@ static inline access_mask_t maybe_remove(const struct dentry *const dentry)
  * allowed accesses in @layer_masks_dom.
  *
  * This is similar to check_access_path_dual() but much simpler because it only
- * handles walking on the same mount point and only check one set of accesses.
+ * handles walking on the same mount point and only checks one set of accesses.
  *
  * Returns:
  * - true if all the domain access rights are allowed for @dir;
@@ -759,6 +760,47 @@ static bool collect_domain_accesses(
 	}
 	dput(dir);
 	return ret;
+}
+
+/**
+ * get_path_access_rights - Returns the subset of rights in access_request
+ * which are permitted for the given path.
+ *
+ * @domain: The domain that defines the current restrictions.
+ * @path: The path to get access rights for.
+ * @access_request: The rights we are interested in.
+ *
+ * Returns: The access mask of the rights that are permitted on the given path,
+ * which are also a subset of access_request (to save some calculation time).
+ */
+static inline access_mask_t
+get_path_access_rights(const struct landlock_ruleset *const domain,
+		       const struct path *const path,
+		       access_mask_t access_request)
+{
+	layer_mask_t layer_masks[LANDLOCK_NUM_ACCESS_FS] = {};
+	unsigned long access_bit;
+	unsigned long access_req;
+
+	init_layer_masks(domain, access_request, &layer_masks);
+	if (!check_access_path_dual(domain, path, access_request, &layer_masks,
+				    NULL, 0, NULL, NULL)) {
+		/*
+		 * Return immediately for successful accesses and for cases
+		 * where everything is permitted because the path belongs to an
+		 * internal filesystem.
+		 */
+		return access_request;
+	}
+
+	access_req = access_request;
+	for_each_set_bit(access_bit, &access_req, ARRAY_SIZE(layer_masks)) {
+		if (layer_masks[access_bit]) {
+			/* If any layer vetoed the access right, remove it. */
+			access_request &= ~BIT_ULL(access_bit);
+		}
+	}
+	return access_request;
 }
 
 /**
@@ -1142,6 +1184,11 @@ static int hook_path_rmdir(const struct path *const dir,
 	return current_check_access_path(dir, LANDLOCK_ACCESS_FS_REMOVE_DIR);
 }
 
+static int hook_path_truncate(const struct path *const path)
+{
+	return current_check_access_path(path, LANDLOCK_ACCESS_FS_TRUNCATE);
+}
+
 /* File hooks */
 
 static inline access_mask_t get_file_access(const struct file *const file)
@@ -1159,22 +1206,55 @@ static inline access_mask_t get_file_access(const struct file *const file)
 	/* __FMODE_EXEC is indeed part of f_flags, not f_mode. */
 	if (file->f_flags & __FMODE_EXEC)
 		access |= LANDLOCK_ACCESS_FS_EXECUTE;
+
 	return access;
 }
 
 static int hook_file_open(struct file *const file)
 {
+	access_mask_t access_req, access_rights;
+	const access_mask_t optional_rights = LANDLOCK_ACCESS_FS_TRUNCATE;
 	const struct landlock_ruleset *const dom =
 		landlock_get_current_domain();
 
-	if (!dom)
+	if (!dom) {
+		/* Grant all rights. */
+		landlock_file(file)->rights = LANDLOCK_MASK_ACCESS_FS;
 		return 0;
+	}
+
 	/*
 	 * Because a file may be opened with O_PATH, get_file_access() may
 	 * return 0.  This case will be handled with a future Landlock
 	 * evolution.
 	 */
-	return check_access_path(dom, &file->f_path, get_file_access(file));
+	access_req = get_file_access(file);
+	access_rights = get_path_access_rights(dom, &file->f_path,
+					       access_req | optional_rights);
+	if (access_req & ~access_rights)
+		return -EACCES;
+
+	/*
+	 * For operations on already opened files (i.e. ftruncate()), it is the
+	 * access rights at the time of open() which decide whether the
+	 * operation is permitted. Therefore, we record the relevant subset of
+	 * file access rights in the opened struct file.
+	 */
+	landlock_file(file)->rights = access_rights;
+
+	return 0;
+}
+
+static int hook_file_truncate(struct file *const file)
+{
+	/*
+	 * We permit truncation if the truncation right was available at the
+	 * time of opening the file.
+	 */
+	if (!(landlock_file(file)->rights & LANDLOCK_ACCESS_FS_TRUNCATE))
+		return -EACCES;
+
+	return 0;
 }
 
 static struct security_hook_list landlock_hooks[] __lsm_ro_after_init = {
@@ -1194,6 +1274,8 @@ static struct security_hook_list landlock_hooks[] __lsm_ro_after_init = {
 	LSM_HOOK_INIT(path_symlink, hook_path_symlink),
 	LSM_HOOK_INIT(path_unlink, hook_path_unlink),
 	LSM_HOOK_INIT(path_rmdir, hook_path_rmdir),
+	LSM_HOOK_INIT(path_truncate, hook_path_truncate),
+	LSM_HOOK_INIT(file_truncate, hook_file_truncate),
 
 	LSM_HOOK_INIT(file_open, hook_file_open),
 };
