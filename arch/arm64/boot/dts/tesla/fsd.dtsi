@@ -284,6 +284,7 @@
 			cache-size = <0x400000>;
 			cache-line-size = <64>;
 			cache-sets = <4096>;
+			cache-level = <2>;
 		};
 
 		idle-states {
