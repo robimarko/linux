@@ -38,7 +38,7 @@ struct section {
 	Elf_Data *data;
 	char *name;
 	int idx;
-	bool changed, text, rodata, noinstr, init;
+	bool changed, text, rodata, noinstr, init, truncate;
 };
 
 struct symbol {
@@ -145,6 +145,8 @@ static inline bool has_multiple_files(struct elf *elf)
 
 struct elf *elf_open_read(const char *name, int flags);
 struct section *elf_create_section(struct elf *elf, const char *name, unsigned int sh_flags, size_t entsize, int nr);
+
+struct symbol *elf_create_prefix_symbol(struct elf *elf, struct symbol *orig, long size);
 
 int elf_add_reloc(struct elf *elf, struct section *sec, unsigned long offset,
 		  unsigned int type, struct symbol *sym, s64 addend);
