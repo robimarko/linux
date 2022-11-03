@@ -323,6 +323,22 @@ void __btrfs_abort_transaction(struct btrfs_trans_handle *trans,
 }
 
 /*
+ * We want the transaction abort to print stack trace only for errors where the
+ * cause could be a bug, eg. due to ENOSPC, and not for common errors that are
+ * caused by external factors.
+ */
+bool __cold abort_should_print_stack(int errno)
+{
+	switch (errno) {
+	case -EIO:
+	case -EROFS:
+	case -ENOMEM:
+		return false;
+	}
+	return true;
+}
+
+/*
  * __btrfs_panic decodes unexpected, fatal errors from the caller, issues an
  * alert, and either panics or BUGs, depending on mount options.
  */
