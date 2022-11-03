@@ -11,6 +11,7 @@
 #define pr_fmt(fmt)	"HugeTLB: " fmt
 
 #include <linux/pgtable.h>
+#include <linux/moduleparam.h>
 #include <linux/bootmem_info.h>
 #include <asm/pgalloc.h>
 #include <asm/tlbflush.h>
@@ -231,10 +232,8 @@ static void free_vmemmap_page_list(struct list_head *list)
 {
 	struct page *page, *next;
 
-	list_for_each_entry_safe(page, next, list, lru) {
-		list_del(&page->lru);
+	list_for_each_entry_safe(page, next, list, lru)
 		free_vmemmap_page(page);
-	}
 }
 
 static void vmemmap_remap_pte(pte_t *pte, unsigned long addr,
