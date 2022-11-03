@@ -4194,19 +4194,15 @@ static int prepare_domain_attach_device(struct iommu_domain *domain,
 		return -ENODEV;
 
 	if (dmar_domain->force_snooping && !ecap_sc_support(iommu->ecap))
-		return -EOPNOTSUPP;
+		return -EINVAL;
 
 	/* check if this iommu agaw is sufficient for max mapped address */
 	addr_width = agaw_to_width(iommu->agaw);
 	if (addr_width > cap_mgaw(iommu->cap))
 		addr_width = cap_mgaw(iommu->cap);
 
-	if (dmar_domain->max_addr > (1LL << addr_width)) {
-		dev_err(dev, "%s: iommu width (%d) is not "
-		        "sufficient for the mapped address (%llx)\n",
-		        __func__, addr_width, dmar_domain->max_addr);
-		return -EFAULT;
-	}
+	if (dmar_domain->max_addr > (1LL << addr_width))
+		return -EINVAL;
 	dmar_domain->gaw = addr_width;
 
 	/*
@@ -4458,7 +4454,11 @@ static bool intel_iommu_capable(struct device *dev, enum iommu_cap cap)
 		return irq_remapping_enabled == 1;
 	if (cap == IOMMU_CAP_PRE_BOOT_PROTECTION)
 		return dmar_platform_optin();
+	if (cap == IOMMU_CAP_ENFORCE_CACHE_COHERENCY) {
+		struct device_domain_info *info = dev_iommu_priv_get(dev);
 
+		return ecap_sc_support(info->iommu->ecap);
+	}
 	return false;
 }
 
