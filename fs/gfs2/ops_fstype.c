@@ -1735,6 +1735,7 @@ static void gfs2_kill_sb(struct super_block *sb)
 	sdp->sd_root_dir = NULL;
 	sdp->sd_master_dir = NULL;
 	shrink_dcache_sb(sb);
+	gfs2_flush_delete_work(sdp);
 	kill_block_super(sb);
 }
 
