@@ -186,6 +186,9 @@ static int modify_irte(struct irq_2_iommu *irq_iommu,
 		 * same as the old value.
 		 */
 		WARN_ON(!ret);
+	} else {
+		WRITE_ONCE(irte->low, irte_modified->low);
+		WRITE_ONCE(irte->high, irte_modified->high);
 	}
 	__iommu_flush_cache(iommu, irte, sizeof(*irte));
 
