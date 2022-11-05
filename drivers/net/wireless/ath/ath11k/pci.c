@@ -374,13 +374,16 @@ static void ath11k_pci_sw_reset(struct ath11k_base *ab, bool power_on)
 static void ath11k_pci_init_qmi_ce_config(struct ath11k_base *ab)
 {
 	struct ath11k_qmi_ce_cfg *cfg = &ab->qmi.ce_cfg;
+	struct ath11k_pci *ab_pci = ath11k_pci_priv(ab);
+	struct pci_bus *bus = ab_pci->pdev->bus;
 
 	cfg->tgt_ce = ab->hw_params.target_ce_config;
 	cfg->tgt_ce_len = ab->hw_params.target_ce_count;
 
 	cfg->svc_to_ce_map = ab->hw_params.svc_to_ce_map;
 	cfg->svc_to_ce_map_len = ab->hw_params.svc_to_ce_map_len;
-	ab->qmi.service_ins_id = ab->hw_params.qmi_service_ins_id;
+	ab->qmi.service_ins_id = ab->hw_params.qmi_service_ins_id +
+	(((pci_domain_nr(bus) & 0xF) << 4) | (bus->number & 0xF));
 
 	ath11k_ce_get_shadow_config(ab, &cfg->shadow_reg_v2,
 				    &cfg->shadow_reg_v2_len);
