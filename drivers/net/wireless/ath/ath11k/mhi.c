@@ -239,6 +239,32 @@ static void ath11k_mhi_op_runtime_put(struct mhi_controller *mhi_cntrl)
 {
 }
 
+static int ath11k_mhi_op_read_reg(struct mhi_controller *mhi_cntrl,
+				  void __iomem *addr,
+				  u32 *out)
+{
+	*out = readl(addr);
+
+	return 0;
+}
+
+static void ath11k_mhi_op_write_reg(struct mhi_controller *mhi_cntrl,
+				    void __iomem *addr,
+				    u32 val)
+{
+	writel(val, addr);
+}
+
+static void ath11k_mhi_qrtr_instance_set(struct mhi_controller *mhi_cntrl)
+{
+	struct ath11k_base *ab = dev_get_drvdata(mhi_cntrl->cntrl_dev);
+
+	ath11k_mhi_op_write_reg(mhi_cntrl,
+				mhi_cntrl->bhi + BHI_ERRDBG2,
+				FIELD_PREP(QRTR_INSTANCE_MASK,
+				ab->qmi.service_ins_id - ab->hw_params.qmi_service_ins_id));
+}
+
 static char *ath11k_mhi_op_callback_to_str(enum mhi_callback reason)
 {
 	switch (reason) {
@@ -260,6 +286,8 @@ static char *ath11k_mhi_op_callback_to_str(enum mhi_callback reason)
 		return "MHI_CB_FATAL_ERROR";
 	case MHI_CB_BW_REQ:
 		return "MHI_CB_BW_REQ";
+	case MHI_CB_EE_SBL_MODE:
+		return "MHI_CB_EE_SBL_MODE";
 	default:
 		return "UNKNOWN";
 	}
@@ -290,27 +318,14 @@ static void ath11k_mhi_op_status_cb(struct mhi_controller *mhi_cntrl,
 			queue_work(ab->workqueue_aux, &ab->reset_work);
 
 		break;
+	case MHI_CB_EE_SBL_MODE:
+		ath11k_mhi_qrtr_instance_set(mhi_cntrl);
+		break;
 	default:
 		break;
 	}
 
 	ab_pci->mhi_pre_cb = cb;
-}
-
-static int ath11k_mhi_op_read_reg(struct mhi_controller *mhi_cntrl,
-				  void __iomem *addr,
-				  u32 *out)
-{
-	*out = readl(addr);
-
-	return 0;
-}
-
-static void ath11k_mhi_op_write_reg(struct mhi_controller *mhi_cntrl,
-				    void __iomem *addr,
-				    u32 val)
-{
-	writel(val, addr);
 }
 
 static int ath11k_mhi_read_addr_from_dt(struct mhi_controller *mhi_ctrl)
