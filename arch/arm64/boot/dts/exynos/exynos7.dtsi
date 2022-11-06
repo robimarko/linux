@@ -110,6 +110,7 @@
 			cache-size = <0x200000>;
 			cache-line-size = <64>;
 			cache-sets = <2048>;
+			cache-level = <2>;
 		};
 	};
 
