@@ -772,24 +772,22 @@ out:
 	return ret;
 }
 
-static int update_qgroup_limit_item(struct btrfs_trans_handle *trans,
-				    struct btrfs_qgroup *qgroup)
+static int __update_qgroup_limit_item(struct btrfs_trans_handle *trans,
+				      struct btrfs_qgroup *qgroup,
+				      struct btrfs_path *path)
 {
 	struct btrfs_root *quota_root = trans->fs_info->quota_root;
-	struct btrfs_path *path;
 	struct btrfs_key key;
 	struct extent_buffer *l;
 	struct btrfs_qgroup_limit_item *qgroup_limit;
 	int ret;
 	int slot;
 
+	ASSERT(path);
+
 	key.objectid = 0;
 	key.type = BTRFS_QGROUP_LIMIT_KEY;
 	key.offset = qgroup->qgroupid;
-
-	path = btrfs_alloc_path();
-	if (!path)
-		return -ENOMEM;
 
 	ret = btrfs_search_slot(trans, quota_root, &key, path, 0, 1);
 	if (ret > 0)
@@ -810,6 +808,21 @@ static int update_qgroup_limit_item(struct btrfs_trans_handle *trans,
 	btrfs_mark_buffer_dirty(l);
 
 out:
+	return ret;
+}
+
+static int update_qgroup_limit_item(struct btrfs_trans_handle *trans,
+				    struct btrfs_qgroup *qgroup)
+{
+	struct btrfs_path *path;
+	int ret;
+
+	path = btrfs_alloc_path();
+	if (!path)
+		return -ENOMEM;
+
+	ret = __update_qgroup_limit_item(trans, qgroup, path);
+
 	btrfs_free_path(path);
 	return ret;
 }
@@ -2874,6 +2887,7 @@ int btrfs_qgroup_inherit(struct btrfs_trans_handle *trans, u64 srcid,
 	bool need_rescan = false;
 	u32 level_size = 0;
 	u64 nums;
+	struct btrfs_path *path;
 
 	/*
 	 * There are only two callers of this function.
@@ -2949,6 +2963,11 @@ int btrfs_qgroup_inherit(struct btrfs_trans_handle *trans, u64 srcid,
 		ret = 0;
 	}
 
+	path = btrfs_alloc_path();
+	if (!path) {
+		ret = -ENOMEM;
+		goto out;
+	}
 
 	spin_lock(&fs_info->qgroup_lock);
 
@@ -2964,8 +2983,7 @@ int btrfs_qgroup_inherit(struct btrfs_trans_handle *trans, u64 srcid,
 		dstgroup->max_excl = inherit->lim.max_excl;
 		dstgroup->rsv_rfer = inherit->lim.rsv_rfer;
 		dstgroup->rsv_excl = inherit->lim.rsv_excl;
-
-		ret = update_qgroup_limit_item(trans, dstgroup);
+		ret = __update_qgroup_limit_item(trans, dstgroup, path);
 		if (ret) {
 			qgroup_mark_inconsistent(fs_info);
 			btrfs_info(fs_info,
@@ -3067,6 +3085,7 @@ int btrfs_qgroup_inherit(struct btrfs_trans_handle *trans, u64 srcid,
 
 unlock:
 	spin_unlock(&fs_info->qgroup_lock);
+	btrfs_free_path(path);
 	if (!ret)
 		ret = btrfs_sysfs_add_one_qgroup(fs_info, dstgroup);
 out:
