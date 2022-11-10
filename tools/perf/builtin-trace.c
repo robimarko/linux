@@ -1053,7 +1053,8 @@ static struct syscall_fmt syscall_fmts[] = {
 	  .arg = { [0] = { .scnprintf = SCA_FDAT,	/* dfd */ },
 		   [2] = { .scnprintf = SCA_OPEN_FLAGS, /* flags */ }, }, },
 	{ .name	    = "perf_event_open",
-	  .arg = { [2] = { .scnprintf = SCA_INT,	/* cpu */ },
+	  .arg = { [0] = { .scnprintf = SCA_PERF_ATTR,  /* attr */ },
+		   [2] = { .scnprintf = SCA_INT,	/* cpu */ },
 		   [3] = { .scnprintf = SCA_FD,		/* group_fd */ },
 		   [4] = { .scnprintf = SCA_PERF_FLAGS, /* flags */ }, }, },
 	{ .name	    = "pipe2",
@@ -1535,8 +1536,8 @@ static size_t trace__fprintf_tstamp(struct trace *trace, u64 tstamp, FILE *fp)
 }
 
 static pid_t workload_pid = -1;
-static bool done = false;
-static bool interrupted = false;
+static volatile sig_atomic_t done = false;
+static volatile sig_atomic_t interrupted = false;
 
 static void sighandler_interrupt(int sig __maybe_unused)
 {
