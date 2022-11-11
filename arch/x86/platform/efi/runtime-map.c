@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * linux/drivers/efi/runtime-map.c
  * Copyright (C) 2013 Red Hat, Inc., Dave Young <dyoung@redhat.com>
  */
 
@@ -157,13 +156,13 @@ int efi_runtime_map_copy(void *buf, size_t bufsz)
 	return 0;
 }
 
-int __init efi_runtime_map_init(struct kobject *efi_kobj)
+static int __init efi_runtime_map_init(void)
 {
 	int i, j, ret = 0;
 	struct efi_runtime_map_entry *entry;
 	efi_memory_desc_t *md;
 
-	if (!efi_enabled(EFI_MEMMAP))
+	if (!efi_enabled(EFI_MEMMAP) || !efi_kobj)
 		return 0;
 
 	map_entries = kcalloc(efi.memmap.nr_map, sizeof(entry), GFP_KERNEL);
@@ -191,3 +190,4 @@ out_add_entry:
 out:
 	return ret;
 }
+subsys_initcall_sync(efi_runtime_map_init);
