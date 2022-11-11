@@ -287,8 +287,10 @@ static int amdgpu_cs_pass1(struct amdgpu_cs_parser *p,
 		}
 	}
 
-	if (!p->gang_size)
-		return -EINVAL;
+	if (!p->gang_size) {
+		ret = -EINVAL;
+		goto free_partial_kdata;
+	}
 
 	for (i = 0; i < p->gang_size; ++i) {
 		ret = amdgpu_job_alloc(p->adev, vm, p->entities[i], vm,
@@ -999,6 +1001,7 @@ out_free_user_pages:
 		kvfree(e->user_pages);
 		e->user_pages = NULL;
 	}
+	mutex_unlock(&p->bo_list->bo_list_mutex);
 	return r;
 }
 

@@ -47,7 +47,7 @@ struct aux_payload;
 struct set_config_cmd_payload;
 struct dmub_notification;
 
-#define DC_VER "3.2.210"
+#define DC_VER "3.2.211"
 
 #define MAX_SURFACES 3
 #define MAX_PLANES 6
@@ -261,6 +261,7 @@ struct dc_caps {
 	uint32_t cache_line_size;
 	uint32_t cache_num_ways;
 	uint16_t subvp_fw_processing_delay_us;
+	uint8_t subvp_drr_max_vblank_margin_us;
 	uint16_t subvp_prefetch_end_to_mall_start_us;
 	uint8_t subvp_swath_height_margin_lines; // subvp start line must be aligned to 2 x swath height
 	uint16_t subvp_pstate_allow_width_us;
@@ -864,6 +865,7 @@ struct dc_debug_options {
 	bool enable_dp_dig_pixel_rate_div_policy;
 	enum lttpr_mode lttpr_mode_override;
 	unsigned int dsc_delay_factor_wa_x1000;
+	unsigned int min_prefetch_in_strobe_ns;
 };
 
 struct gpu_info_soc_bounding_box_v1_0;
