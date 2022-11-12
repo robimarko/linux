@@ -188,11 +188,6 @@
 		};
 	};
 
-	qpic_pins: qpic-pins {
-			status = "disabled";
-			/*disabling qpic-pins due to the leds are using all of the gpios*/
-	};
-
 	leds_pins: leds_pinmux {
 		led_pwr_green {
 			pins = "gpio4";
