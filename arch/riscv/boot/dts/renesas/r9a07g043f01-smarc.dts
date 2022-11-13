@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 /*
- * Device Tree Source for the RZ/G2UL Type-1 SMARC EVK board
+ * Device Tree Source for the RZ/Five SMARC EVK
  *
  * Copyright (C) 2022 Renesas Electronics Corp.
  */
@@ -17,11 +17,11 @@
 #define SW_SW0_DEV_SEL	1
 #define SW_ET0_EN_N	1
 
-#include "r9a07g043u.dtsi"
-#include "rzg2ul-smarc-som.dtsi"
-#include "rzg2ul-smarc.dtsi"
+#include "r9a07g043f.dtsi"
+#include "rzfive-smarc-som.dtsi"
+#include "rzfive-smarc.dtsi"
 
 / {
-	model = "Renesas SMARC EVK based on r9a07g043u11";
-	compatible = "renesas,smarc-evk", "renesas,r9a07g043u11", "renesas,r9a07g043";
+	model = "Renesas SMARC EVK based on r9a07g043f01";
+	compatible = "renesas,smarc-evk", "renesas,r9a07g043f01", "renesas,r9a07g043";
 };
