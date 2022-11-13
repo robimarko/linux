@@ -59,8 +59,12 @@ allOf:
         clocks:
           items:
             - description: MDIO clock source frequency fixed to 100MHZ
+        clock-names:
+          items:
+            - const: gcc_mdio_ahb_clk
       required:
         - clocks
+        - clock-names
 
 unevaluatedProperties: false
 
