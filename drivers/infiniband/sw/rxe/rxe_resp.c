@@ -91,7 +91,10 @@ void rxe_resp_queue_pkt(struct rxe_qp *qp, struct sk_buff *skb)
 	must_sched = (pkt->opcode == IB_OPCODE_RC_RDMA_READ_REQUEST) ||
 			(skb_queue_len(&qp->req_pkts) > 1);
 
-	rxe_run_task(&qp->resp.task, must_sched);
+	if (must_sched)
+		rxe_sched_task(&qp->resp.task);
+	else
+		rxe_run_task(&qp->resp.task);
 }
 
 static inline enum resp_states get_req(struct rxe_qp *qp,
@@ -390,16 +393,36 @@ static enum resp_states check_resource(struct rxe_qp *qp,
 static enum resp_states check_length(struct rxe_qp *qp,
 				     struct rxe_pkt_info *pkt)
 {
-	switch (qp_type(qp)) {
-	case IB_QPT_RC:
-		return RESPST_CHK_RKEY;
+	int mtu = qp->mtu;
+	u32 payload = payload_size(pkt);
+	u32 dmalen = reth_len(pkt);
 
-	case IB_QPT_UC:
-		return RESPST_CHK_RKEY;
+	/* RoCEv2 packets do not have LRH.
+	 * Let's skip checking it.
+	 */
 
-	default:
-		return RESPST_CHK_RKEY;
+	if ((pkt->opcode & RXE_START_MASK) &&
+	    (pkt->opcode & RXE_END_MASK)) {
+		/* "only" packets */
+		if (payload > mtu)
+			return RESPST_ERR_LENGTH;
+	} else if ((pkt->opcode & RXE_START_MASK) ||
+		   (pkt->opcode & RXE_MIDDLE_MASK)) {
+		/* "first" or "middle" packets */
+		if (payload != mtu)
+			return RESPST_ERR_LENGTH;
+	} else if (pkt->opcode & RXE_END_MASK) {
+		/* "last" packets */
+		if ((payload == 0) || (payload > mtu))
+			return RESPST_ERR_LENGTH;
 	}
+
+	if (pkt->opcode & (RXE_WRITE_MASK | RXE_READ_MASK)) {
+		if (dmalen > (1 << 31))
+			return RESPST_ERR_LENGTH;
+	}
+
+	return RESPST_CHK_RKEY;
 }
 
 static enum resp_states check_rkey(struct rxe_qp *qp,
@@ -811,10 +834,13 @@ static enum resp_states read_reply(struct rxe_qp *qp,
 		return RESPST_ERR_RNR;
 	}
 
-	rxe_mr_copy(mr, res->read.va, payload_addr(&ack_pkt),
-		    payload, RXE_FROM_MR_OBJ);
-	if (mr)
-		rxe_put(mr);
+	err = rxe_mr_copy(mr, res->read.va, payload_addr(&ack_pkt),
+			  payload, RXE_FROM_MR_OBJ);
+	rxe_put(mr);
+	if (err) {
+		kfree_skb(skb);
+		return RESPST_ERR_RKEY_VIOLATION;
+	}
 
 	if (bth_pad(&ack_pkt)) {
 		u8 *pad = payload_addr(&ack_pkt) + payload;
