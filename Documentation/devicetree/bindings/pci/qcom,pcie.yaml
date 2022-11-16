@@ -24,6 +24,7 @@ properties:
       - qcom,pcie-ipq8064
       - qcom,pcie-ipq8064-v2
       - qcom,pcie-ipq8074
+      - qcom,pcie-ipq8074-gen3
       - qcom,pcie-msm8996
       - qcom,pcie-qcs404
       - qcom,pcie-sa8540p
@@ -153,6 +154,7 @@ allOf:
           contains:
             enum:
               - qcom,pcie-ipq6018
+              - qcom,pcie-ipq8074-gen3
     then:
       properties:
         reg:
@@ -373,6 +375,7 @@ allOf:
           contains:
             enum:
               - qcom,pcie-ipq6018
+              - qcom,pcie-ipq8074-gen3
     then:
       properties:
         clocks:
@@ -664,6 +667,7 @@ allOf:
                 - qcom,pcie-ipq8064
                 - qcom,pcie-ipq8064v2
                 - qcom,pcie-ipq8074
+                - qcom,pcie-ipq8074-gen3
                 - qcom,pcie-qcs404
     then:
       required:
@@ -746,6 +750,7 @@ allOf:
               - qcom,pcie-ipq8064
               - qcom,pcie-ipq8064-v2
               - qcom,pcie-ipq8074
+              - qcom,pcie-ipq8074-gen3
               - qcom,pcie-qcs404
               - qcom,pcie-sa8540p
     then:
