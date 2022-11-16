@@ -17,13 +17,14 @@ description: |
 properties:
   compatible:
     enum:
-      - qcom,pcie-ipq8064
-      - qcom,pcie-ipq8064-v2
       - qcom,pcie-apq8064
       - qcom,pcie-apq8084
-      - qcom,pcie-msm8996
       - qcom,pcie-ipq4019
+      - qcom,pcie-ipq6018
+      - qcom,pcie-ipq8064
+      - qcom,pcie-ipq8064-v2
       - qcom,pcie-ipq8074
+      - qcom,pcie-msm8996
       - qcom,pcie-qcs404
       - qcom,pcie-sa8540p
       - qcom,pcie-sc7280
@@ -34,7 +35,6 @@ properties:
       - qcom,pcie-sm8250
       - qcom,pcie-sm8450-pcie0
       - qcom,pcie-sm8450-pcie1
-      - qcom,pcie-ipq6018
 
   reg:
     minItems: 4
