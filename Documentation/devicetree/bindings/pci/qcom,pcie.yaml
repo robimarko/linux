@@ -78,6 +78,8 @@ properties:
       - const: pcie-mem
       - const: cpu-pcie
 
+  msi-parent: true
+
   resets:
     minItems: 1
     maxItems: 12
@@ -120,8 +122,6 @@ required:
   - compatible
   - reg
   - reg-names
-  - interrupts
-  - interrupt-names
   - "#interrupt-cells"
   - interrupt-map-mask
   - interrupt-map
@@ -775,8 +775,6 @@ allOf:
               - qcom,pcie-ipq6018
               - qcom,pcie-ipq8064
               - qcom,pcie-ipq8064-v2
-              - qcom,pcie-ipq8074
-              - qcom,pcie-ipq8074-gen3
               - qcom,pcie-qcs404
               - qcom,pcie-sa8540p
     then:
@@ -786,6 +784,23 @@ allOf:
         interrupt-names:
           items:
             - const: msi
+
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - qcom,pcie-ipq8074
+              - qcom,pcie-ipq8074-gen3
+    then:
+      required:
+        - msi-parent
+    else:
+      properties:
+        msi-parent: false
+      required:
+        - interrupts
+        - interrupt-names
 
 unevaluatedProperties: false
 
