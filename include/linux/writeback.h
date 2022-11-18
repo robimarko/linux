@@ -61,6 +61,7 @@ struct writeback_control {
 	unsigned range_cyclic:1;	/* range_start is cyclic */
 	unsigned for_sync:1;		/* sync(2) WB_SYNC_ALL writeback */
 	unsigned unpinned_fscache_wb:1;	/* Cleared I_PINNING_FSCACHE_WB */
+	unsigned for_write_begin:1;	/* Flush conflicting write */
 
 	/*
 	 * When writeback IOs are bounced through async layers, only the

@@ -2469,7 +2469,8 @@ int do_writepages(struct address_space *mapping, struct writeback_control *wbc)
 			ret = mapping->a_ops->writepages(mapping, wbc);
 		else
 			ret = generic_writepages(mapping, wbc);
-		if ((ret != -ENOMEM) || (wbc->sync_mode != WB_SYNC_ALL))
+		if ((ret != -ENOMEM) || (wbc->sync_mode != WB_SYNC_ALL) ||
+		    wbc->for_write_begin)
 			break;
 
 		/*
