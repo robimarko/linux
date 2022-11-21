@@ -530,6 +530,7 @@ struct p9_rstatfs {
  * @tag: transaction id of the request
  * @offset: used by marshalling routines to track current position in buffer
  * @capacity: used by marshalling routines to track total malloc'd capacity
+ * @zc: whether zero-copy is used
  * @sdata: payload
  *
  * &p9_fcall represents the structure for all 9P RPC
@@ -546,6 +547,7 @@ struct p9_fcall {
 
 	size_t offset;
 	size_t capacity;
+	bool zc;
 
 	struct kmem_cache *cache;
 	u8 *sdata;
