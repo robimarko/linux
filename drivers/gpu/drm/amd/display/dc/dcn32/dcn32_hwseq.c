@@ -227,8 +227,13 @@ static uint32_t dcn32_calculate_cab_allocation(struct dc *dc, struct dc_state *c
 	for (i = 0; i < dc->res_pool->pipe_count; i++) {
 		struct pipe_ctx *pipe = &dc->current_state->res_ctx.pipe_ctx[i];
 
+		/* If PSR is supported on an eDP panel that's connected, but that panel is
+		 * not in PSR at the time of trying to enter MALL SS, we have to include it
+		 * in the static screen CAB calculation
+		 */
 		if (!pipe->stream || !pipe->plane_state ||
-				pipe->stream->link->psr_settings.psr_version != DC_PSR_VERSION_UNSUPPORTED ||
+				(pipe->stream->link->psr_settings.psr_version != DC_PSR_VERSION_UNSUPPORTED &&
+				pipe->stream->link->psr_settings.psr_allow_active) ||
 				pipe->stream->mall_stream_config.type == SUBVP_PHANTOM)
 			continue;
 
@@ -980,6 +985,9 @@ void dcn32_init_hw(struct dc *dc)
 	if (dc->res_pool->hubbub->funcs->init_crb)
 		dc->res_pool->hubbub->funcs->init_crb(dc->res_pool->hubbub);
 
+	if (dc->res_pool->hubbub->funcs->set_request_limit && dc->config.sdpif_request_limit_words_per_umc > 0)
+		dc->res_pool->hubbub->funcs->set_request_limit(dc->res_pool->hubbub, dc->ctx->dc_bios->vram_info.num_chans, dc->config.sdpif_request_limit_words_per_umc);
+
 	// Get DMCUB capabilities
 	if (dc->ctx->dmub_srv) {
 		dc_dmub_srv_query_caps_cmd(dc->ctx->dmub_srv->dmub);
@@ -1167,10 +1175,8 @@ unsigned int dcn32_calculate_dccg_k1_k2_values(struct pipe_ctx *pipe_ctx, unsign
 	two_pix_per_container = optc2_is_two_pixels_per_containter(&stream->timing);
 	odm_combine_factor = get_odm_config(pipe_ctx, NULL);
 
-	if (pipe_ctx->stream->signal == SIGNAL_TYPE_VIRTUAL)
-		return odm_combine_factor;
-
 	if (is_dp_128b_132b_signal(pipe_ctx)) {
+		*k1_div = PIXEL_RATE_DIV_BY_1;
 		*k2_div = PIXEL_RATE_DIV_BY_1;
 	} else if (dc_is_hdmi_tmds_signal(pipe_ctx->stream->signal) || dc_is_dvi_signal(pipe_ctx->stream->signal)) {
 		*k1_div = PIXEL_RATE_DIV_BY_1;
@@ -1358,6 +1364,33 @@ void dcn32_update_phantom_vp_position(struct dc *dc,
 				phantom_pipe->plane_state->update_flags.bits.position_change = 1;
 				resource_build_scaling_params(phantom_pipe);
 				return;
+			}
+		}
+	}
+}
+
+/* Treat the phantom pipe as if it needs to be fully enabled.
+ * If the pipe was previously in use but not phantom, it would
+ * have been disabled earlier in the sequence so we need to run
+ * the full enable sequence.
+ */
+void dcn32_apply_update_flags_for_phantom(struct pipe_ctx *phantom_pipe)
+{
+	phantom_pipe->update_flags.raw = 0;
+	if (phantom_pipe->stream && phantom_pipe->stream->mall_stream_config.type == SUBVP_PHANTOM) {
+		if (phantom_pipe->stream && phantom_pipe->plane_state) {
+			phantom_pipe->update_flags.bits.enable = 1;
+			phantom_pipe->update_flags.bits.mpcc = 1;
+			phantom_pipe->update_flags.bits.dppclk = 1;
+			phantom_pipe->update_flags.bits.hubp_interdependent = 1;
+			phantom_pipe->update_flags.bits.hubp_rq_dlg_ttu = 1;
+			phantom_pipe->update_flags.bits.gamut_remap = 1;
+			phantom_pipe->update_flags.bits.scaler = 1;
+			phantom_pipe->update_flags.bits.viewport = 1;
+			phantom_pipe->update_flags.bits.det_size = 1;
+			if (!phantom_pipe->top_pipe && !phantom_pipe->prev_odm_pipe) {
+				phantom_pipe->update_flags.bits.odm = 1;
+				phantom_pipe->update_flags.bits.global_sync = 1;
 			}
 		}
 	}

@@ -52,6 +52,32 @@ static int psp_load_smu_fw(struct psp_context *psp);
 static int psp_rap_terminate(struct psp_context *psp);
 static int psp_securedisplay_terminate(struct psp_context *psp);
 
+static int psp_ring_init(struct psp_context *psp,
+			 enum psp_ring_type ring_type)
+{
+	int ret = 0;
+	struct psp_ring *ring;
+	struct amdgpu_device *adev = psp->adev;
+
+	ring = &psp->km_ring;
+
+	ring->ring_type = ring_type;
+
+	/* allocate 4k Page of Local Frame Buffer memory for ring */
+	ring->ring_size = 0x1000;
+	ret = amdgpu_bo_create_kernel(adev, ring->ring_size, PAGE_SIZE,
+				      AMDGPU_GEM_DOMAIN_VRAM,
+				      &adev->firmware.rbuf,
+				      &ring->ring_mem_mc_addr,
+				      (void **)&ring->ring_mem);
+	if (ret) {
+		ring->ring_size = 0;
+		return ret;
+	}
+
+	return 0;
+}
+
 /*
  * Due to DF Cstate management centralized to PMFW, the firmware
  * loading sequence will be updated as below:
@@ -172,6 +198,7 @@ void psp_ta_free_shared_buf(struct ta_mem_context *mem_ctx)
 {
 	amdgpu_bo_free_kernel(&mem_ctx->shared_bo, &mem_ctx->shared_mc_addr,
 			      &mem_ctx->shared_buf);
+	mem_ctx->shared_bo = NULL;
 }
 
 static void psp_free_shared_bufs(struct psp_context *psp)
@@ -182,6 +209,7 @@ static void psp_free_shared_bufs(struct psp_context *psp)
 	/* free TMR memory buffer */
 	pptr = amdgpu_sriov_vf(psp->adev) ? &tmr_buf : NULL;
 	amdgpu_bo_free_kernel(&psp->tmr_bo, &psp->tmr_mc_addr, pptr);
+	psp->tmr_bo = NULL;
 
 	/* free xgmi shared memory */
 	psp_ta_free_shared_buf(&psp->xgmi_context.context.mem_context);
@@ -743,37 +771,39 @@ static int psp_load_toc(struct psp_context *psp,
 /* Set up Trusted Memory Region */
 static int psp_tmr_init(struct psp_context *psp)
 {
-	int ret;
+	int ret = 0;
 	int tmr_size;
 	void *tmr_buf;
 	void **pptr;
 
-	/*
-	 * According to HW engineer, they prefer the TMR address be "naturally
-	 * aligned" , e.g. the start address be an integer divide of TMR size.
-	 *
-	 * Note: this memory need be reserved till the driver
-	 * uninitializes.
-	 */
-	tmr_size = PSP_TMR_SIZE(psp->adev);
+	if (!psp->tmr_bo) {
+		/*
+		 * According to HW engineer, they prefer the TMR address be "naturally
+		 * aligned" , e.g. the start address be an integer divide of TMR size.
+		 *
+		 * Note: this memory need be reserved till the driver
+		 * uninitializes.
+		 */
+		tmr_size = PSP_TMR_SIZE(psp->adev);
 
-	/* For ASICs support RLC autoload, psp will parse the toc
-	 * and calculate the total size of TMR needed */
-	if (!amdgpu_sriov_vf(psp->adev) &&
-	    psp->toc.start_addr &&
-	    psp->toc.size_bytes &&
-	    psp->fw_pri_buf) {
-		ret = psp_load_toc(psp, &tmr_size);
-		if (ret) {
-			DRM_ERROR("Failed to load toc\n");
-			return ret;
+		/* For ASICs support RLC autoload, psp will parse the toc
+		 * and calculate the total size of TMR needed */
+		if (!amdgpu_sriov_vf(psp->adev) &&
+		    psp->toc.start_addr &&
+		    psp->toc.size_bytes &&
+		    psp->fw_pri_buf) {
+			ret = psp_load_toc(psp, &tmr_size);
+			if (ret) {
+				DRM_ERROR("Failed to load toc\n");
+				return ret;
+			}
 		}
-	}
 
-	pptr = amdgpu_sriov_vf(psp->adev) ? &tmr_buf : NULL;
-	ret = amdgpu_bo_create_kernel(psp->adev, tmr_size, PSP_TMR_ALIGNMENT,
-				      AMDGPU_GEM_DOMAIN_VRAM,
-				      &psp->tmr_bo, &psp->tmr_mc_addr, pptr);
+		pptr = amdgpu_sriov_vf(psp->adev) ? &tmr_buf : NULL;
+		ret = amdgpu_bo_create_kernel(psp->adev, tmr_size, PSP_TMR_ALIGNMENT,
+					      AMDGPU_GEM_DOMAIN_VRAM,
+					      &psp->tmr_bo, &psp->tmr_mc_addr, pptr);
+	}
 
 	return ret;
 }
@@ -1526,11 +1556,6 @@ int psp_ras_initialize(struct psp_context *psp)
 	if (amdgpu_sriov_vf(adev))
 		return 0;
 
-	if (psp->ras_context.context.initialized) {
-		dev_warn(adev->dev, "RAS WARN: TA has already been loaded\n");
-		return 0;
-	}
-
 	if (!adev->psp.ras_context.context.bin_desc.size_bytes ||
 	    !adev->psp.ras_context.context.bin_desc.start_addr) {
 		dev_info(adev->dev, "RAS: optional ras ta ucode is not available\n");
@@ -1602,6 +1627,9 @@ int psp_ras_initialize(struct psp_context *psp)
 	else {
 		if (ras_cmd->ras_status)
 			dev_warn(psp->adev->dev, "RAS Init Status: 0x%X\n", ras_cmd->ras_status);
+
+		/* fail to load RAS TA */
+		psp->ras_context.context.initialized = false;
 	}
 
 	return ret;
@@ -2703,8 +2731,6 @@ static int psp_suspend(void *handle)
 	}
 
 out:
-	psp_free_shared_bufs(psp);
-
 	return ret;
 }
 
