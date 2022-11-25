@@ -279,6 +279,7 @@ GPIO
   devm_gpio_request_one()
 
 I2C
+  devm_i2c_add_adapter()
   devm_i2c_new_dummy_device()
 
 IIO
@@ -408,6 +409,7 @@ PWM
 REGULATOR
   devm_regulator_bulk_register_supply_alias()
   devm_regulator_bulk_get()
+  devm_regulator_bulk_get_const()
   devm_regulator_bulk_get_enable()
   devm_regulator_bulk_put()
   devm_regulator_get()
