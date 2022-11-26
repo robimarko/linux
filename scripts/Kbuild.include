@@ -10,6 +10,10 @@ empty   :=
 space   := $(empty) $(empty)
 space_escape := _-_SPACE_-_
 pound := \#
+define newline
+
+
+endef
 
 ###
 # Comparison macros.
@@ -54,6 +58,17 @@ stringify = $(squote)$(quote)$1$(quote)$(squote)
 # The path to Kbuild or Makefile. Kbuild has precedence over Makefile.
 kbuild-dir = $(if $(filter /%,$(src)),$(src),$(srctree)/$(src))
 kbuild-file = $(or $(wildcard $(kbuild-dir)/Kbuild),$(kbuild-dir)/Makefile)
+
+###
+# Read a file, replacing newlines with spaces
+#
+# This ifeq will break when GNU Make 4.10 is released.
+# Remove this conditional until then.
+ifeq ($(call test-ge, $(MAKE_VERSION), 4.2),y)
+read-file = $(subst $(newline),$(space),$(file < $1))
+else
+read-file = $(shell cat $1 2>/dev/null)
+endif
 
 ###
 # Easy method for doing a status message
