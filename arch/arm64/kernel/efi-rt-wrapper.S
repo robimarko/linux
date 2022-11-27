@@ -28,7 +28,7 @@ SYM_FUNC_START(__efi_rt_asm_wrapper)
 	stp	x27, x28, [sp, #96]
 
 	adr_this_cpu	x8, __efi_rt_asm_recover_sp, x9
-	str		x29, [x8]
+	stp		x29, x18, [x8]
 
 	/*
 	 * We are lucky enough that no EFI runtime services take more than
@@ -56,15 +56,17 @@ SYM_FUNC_START(__efi_rt_asm_wrapper)
 	 * called with preemption disabled and a separate shadow stack is used
 	 * for interrupts.
 	 */
-	mov	x18, x2
+#ifdef CONFIG_SHADOW_CALL_STACK
+	ldr_this_cpu	x18, __efi_rt_asm_recover_sp + 8, x9
+#endif
+
 	b	efi_handle_corrupted_x18	// tail call
 SYM_FUNC_END(__efi_rt_asm_wrapper)
 
-SYM_FUNC_START(__efi_rt_asm_recover)
-	ldr_this_cpu	x8, __efi_rt_asm_recover_sp, x9
-	mov		sp, x8
+SYM_CODE_START(__efi_rt_asm_recover)
+	mov	sp, x30
 
-	ldp	x0,  x18, [sp, #16]
+	ldr	x0, [sp, #16]
 	ldp	x19, x20, [sp, #32]
 	ldp	x21, x22, [sp, #48]
 	ldp	x23, x24, [sp, #64]
@@ -73,4 +75,4 @@ SYM_FUNC_START(__efi_rt_asm_recover)
 	ldp	x29, x30, [sp], #112
 
 	b	efi_handle_runtime_exception
-SYM_FUNC_END(__efi_rt_asm_recover)
+SYM_CODE_END(__efi_rt_asm_recover)

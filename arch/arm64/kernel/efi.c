@@ -146,7 +146,7 @@ asmlinkage efi_status_t efi_handle_corrupted_x18(efi_status_t s, const char *f)
 	return s;
 }
 
-asmlinkage DEFINE_PER_CPU(u64, __efi_rt_asm_recover_sp);
+asmlinkage DEFINE_PER_CPU(u64[2], __efi_rt_asm_recover_sp);
 
 asmlinkage efi_status_t __efi_rt_asm_recover(void);
 
@@ -167,6 +167,10 @@ bool efi_runtime_fixup_exception(struct pt_regs *regs, const char *msg)
 	add_taint(TAINT_FIRMWARE_WORKAROUND, LOCKDEP_STILL_OK);
 	dump_stack();
 
+	regs->regs[30] = __this_cpu_read(__efi_rt_asm_recover_sp[0]);
+#ifdef CONFIG_SHADOW_CALL_STACK
+	regs->regs[18] = __this_cpu_read(__efi_rt_asm_recover_sp[1]);
+#endif
 	regs->pc = (u64)__efi_rt_asm_recover;
 	return true;
 }
