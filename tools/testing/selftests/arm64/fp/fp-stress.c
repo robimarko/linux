@@ -290,11 +290,11 @@ static void start_fpsimd(struct child_data *child, int cpu, int copy)
 {
 	int ret;
 
-	child_start(child, "./fpsimd-test");
-
 	ret = asprintf(&child->name, "FPSIMD-%d-%d", cpu, copy);
 	if (ret == -1)
 		ksft_exit_fail_msg("asprintf() failed\n");
+
+	child_start(child, "./fpsimd-test");
 
 	ksft_print_msg("Started %s\n", child->name);
 }
@@ -307,11 +307,11 @@ static void start_sve(struct child_data *child, int vl, int cpu)
 	if (ret < 0)
 		ksft_exit_fail_msg("Failed to set SVE VL %d\n", vl);
 
-	child_start(child, "./sve-test");
-
 	ret = asprintf(&child->name, "SVE-VL-%d-%d", vl, cpu);
 	if (ret == -1)
 		ksft_exit_fail_msg("asprintf() failed\n");
+
+	child_start(child, "./sve-test");
 
 	ksft_print_msg("Started %s\n", child->name);
 }
@@ -320,15 +320,15 @@ static void start_ssve(struct child_data *child, int vl, int cpu)
 {
 	int ret;
 
+	ret = asprintf(&child->name, "SSVE-VL-%d-%d", vl, cpu);
+	if (ret == -1)
+		ksft_exit_fail_msg("asprintf() failed\n");
+
 	ret = prctl(PR_SME_SET_VL, vl | PR_SME_VL_INHERIT);
 	if (ret < 0)
 		ksft_exit_fail_msg("Failed to set SME VL %d\n", ret);
 
 	child_start(child, "./ssve-test");
-
-	ret = asprintf(&child->name, "SSVE-VL-%d-%d", vl, cpu);
-	if (ret == -1)
-		ksft_exit_fail_msg("asprintf() failed\n");
 
 	ksft_print_msg("Started %s\n", child->name);
 }
@@ -341,11 +341,11 @@ static void start_za(struct child_data *child, int vl, int cpu)
 	if (ret < 0)
 		ksft_exit_fail_msg("Failed to set SME VL %d\n", ret);
 
-	child_start(child, "./za-test");
-
 	ret = asprintf(&child->name, "ZA-VL-%d-%d", vl, cpu);
 	if (ret == -1)
 		ksft_exit_fail_msg("asprintf() failed\n");
+
+	child_start(child, "./za-test");
 
 	ksft_print_msg("Started %s\n", child->name);
 }
@@ -403,6 +403,8 @@ int main(int argc, char **argv)
 	int timeout = 10;
 	int cpus, tests, i, j, c;
 	int sve_vl_count, sme_vl_count, fpsimd_per_cpu;
+	bool all_children_started = false;
+	int seen_children;
 	int sve_vls[MAX_VLS], sme_vls[MAX_VLS];
 	struct epoll_event ev;
 	struct sigaction sa;
@@ -525,6 +527,30 @@ int main(int argc, char **argv)
 		}
 
 		/* Otherwise epoll_wait() timed out */
+
+		/*
+		 * If the child processes have not produced output they
+		 * aren't actually running the tests yet .
+		 */
+		if (!all_children_started) {
+			seen_children = 0;
+
+			for (i = 0; i < num_children; i++)
+				if (children[i].output_seen ||
+				    children[i].exited)
+					seen_children++;
+
+			if (seen_children != num_children) {
+				ksft_print_msg("Waiting for %d children\n",
+					       num_children - seen_children);
+				continue;
+			}
+
+			all_children_started = true;
+		}
+
+		ksft_print_msg("Sending signals, timeout remaining: %d\n",
+			       timeout);
 
 		for (i = 0; i < num_children; i++)
 			child_tickle(&children[i]);
