@@ -174,6 +174,7 @@ static void amdgpu_job_free_cb(struct drm_sched_job *s_job)
 	drm_sched_job_cleanup(s_job);
 
 	amdgpu_sync_free(&job->explicit_sync);
+
 	/* only put the hw fence if has embedded fence */
 	if (!job->hw_fence.ops)
 		kfree(job);
