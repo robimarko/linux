@@ -2451,8 +2451,11 @@ void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			host->drv_type = ios->drv_type;
 		}
 
-		/* Re-enable SD Clock */
-		host->ops->set_clock(host, host->clock);
+		if (ios->clock) {
+			clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
+			clk |= SDHCI_CLOCK_CARD_EN;
+			sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+		}
 	} else
 		sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL);
 }
