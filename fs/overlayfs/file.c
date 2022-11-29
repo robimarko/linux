@@ -34,7 +34,7 @@ static char ovl_whatisit(struct inode *inode, struct inode *realinode)
 		return 'm';
 }
 
-/* No atime modificaton nor notify on underlying */
+/* No atime modification nor notify on underlying */
 #define OVL_OPEN_FLAGS (O_NOATIME | FMODE_NONOTIFY)
 
 static struct file *ovl_open_realfile(const struct file *file,
@@ -96,6 +96,7 @@ static int ovl_change_flags(struct file *file, unsigned int flags)
 
 	spin_lock(&file->f_lock);
 	file->f_flags = (file->f_flags & ~OVL_SETFL_MASK) | flags;
+	file->f_iocb_flags = iocb_flags(file);
 	spin_unlock(&file->f_lock);
 
 	return 0;
@@ -510,6 +511,20 @@ static int ovl_mmap(struct file *file, struct vm_area_struct *vma)
 	return ret;
 }
 
+static int ovl_remove_privs_unlocked(struct file *file)
+{
+	struct inode *inode = file_inode(file);
+	int err;
+
+	inode_lock(inode);
+	/* Update mode */
+	ovl_copyattr(inode);
+	err = file_remove_privs(file);
+	inode_unlock(inode);
+
+	return err;
+}
+
 static long ovl_fallocate(struct file *file, int mode, loff_t offset, loff_t len)
 {
 	struct inode *inode = file_inode(file);
@@ -528,6 +543,10 @@ static long ovl_fallocate(struct file *file, int mode, loff_t offset, loff_t len
 	if (ret)
 		goto out_unlock;
 
+	ret = ovl_remove_privs_unlocked(file);
+	if (ret)
+		goto out_fdput;
+
 	old_cred = ovl_override_creds(file_inode(file)->i_sb);
 	ret = vfs_fallocate(real.file, mode, offset, len);
 	revert_creds(old_cred);
@@ -535,6 +554,7 @@ static long ovl_fallocate(struct file *file, int mode, loff_t offset, loff_t len
 	/* Update size */
 	ovl_copyattr(inode);
 
+out_fdput:
 	fdput(real);
 
 out_unlock:
@@ -596,6 +616,12 @@ static loff_t ovl_copyfile(struct file *file_in, loff_t pos_in,
 		goto out_unlock;
 	}
 
+	if (op != OVL_DEDUPE) {
+		ret = ovl_remove_privs_unlocked(file_out);
+		if (ret)
+			goto out_fdput;
+	}
+
 	old_cred = ovl_override_creds(file_inode(file_out)->i_sb);
 	switch (op) {
 	case OVL_COPY:
@@ -619,6 +645,7 @@ static loff_t ovl_copyfile(struct file *file_in, loff_t pos_in,
 	/* Update size */
 	ovl_copyattr(inode_out);
 
+out_fdput:
 	fdput(real_in);
 	fdput(real_out);
 
