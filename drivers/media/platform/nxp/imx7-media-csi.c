@@ -8,7 +8,6 @@
 
 #include <linux/clk.h>
 #include <linux/delay.h>
-#include <linux/gcd.h>
 #include <linux/interrupt.h>
 #include <linux/mfd/syscon.h>
 #include <linux/module.h>
@@ -200,7 +199,7 @@ to_imx7_csi_vb2_buffer(struct vb2_buffer *vb)
 
 struct imx7_csi_dma_buf {
 	void *virt;
-	dma_addr_t phys;
+	dma_addr_t dma_addr;
 	unsigned long len;
 };
 
@@ -384,13 +383,13 @@ static void imx7_csi_dmareq_rff_disable(struct imx7_csi *csi)
 	imx7_csi_reg_write(csi, cr3, CSI_CSICR3);
 }
 
-static void imx7_csi_update_buf(struct imx7_csi *csi, dma_addr_t phys,
+static void imx7_csi_update_buf(struct imx7_csi *csi, dma_addr_t dma_addr,
 				int buf_num)
 {
 	if (buf_num == 1)
-		imx7_csi_reg_write(csi, phys, CSI_CSIDMASA_FB2);
+		imx7_csi_reg_write(csi, dma_addr, CSI_CSIDMASA_FB2);
 	else
-		imx7_csi_reg_write(csi, phys, CSI_CSIDMASA_FB1);
+		imx7_csi_reg_write(csi, dma_addr, CSI_CSIDMASA_FB1);
 }
 
 static struct imx7_csi_vb2_buffer *imx7_csi_video_next_buf(struct imx7_csi *csi);
@@ -399,21 +398,22 @@ static void imx7_csi_setup_vb2_buf(struct imx7_csi *csi)
 {
 	struct imx7_csi_vb2_buffer *buf;
 	struct vb2_buffer *vb2_buf;
-	dma_addr_t phys[2];
 	int i;
 
 	for (i = 0; i < 2; i++) {
+		dma_addr_t dma_addr;
+
 		buf = imx7_csi_video_next_buf(csi);
 		if (buf) {
 			csi->active_vb2_buf[i] = buf;
 			vb2_buf = &buf->vbuf.vb2_buf;
-			phys[i] = vb2_dma_contig_plane_dma_addr(vb2_buf, 0);
+			dma_addr = vb2_dma_contig_plane_dma_addr(vb2_buf, 0);
 		} else {
 			csi->active_vb2_buf[i] = NULL;
-			phys[i] = csi->underrun_buf.phys;
+			dma_addr = csi->underrun_buf.dma_addr;
 		}
 
-		imx7_csi_update_buf(csi, phys[i], i);
+		imx7_csi_update_buf(csi, dma_addr, i);
 	}
 }
 
@@ -440,10 +440,10 @@ static void imx7_csi_free_dma_buf(struct imx7_csi *csi,
 				  struct imx7_csi_dma_buf *buf)
 {
 	if (buf->virt)
-		dma_free_coherent(csi->dev, buf->len, buf->virt, buf->phys);
+		dma_free_coherent(csi->dev, buf->len, buf->virt, buf->dma_addr);
 
 	buf->virt = NULL;
-	buf->phys = 0;
+	buf->dma_addr = 0;
 }
 
 static int imx7_csi_alloc_dma_buf(struct imx7_csi *csi,
@@ -452,7 +452,7 @@ static int imx7_csi_alloc_dma_buf(struct imx7_csi *csi,
 	imx7_csi_free_dma_buf(csi, buf);
 
 	buf->len = PAGE_ALIGN(size);
-	buf->virt = dma_alloc_coherent(csi->dev, buf->len, &buf->phys,
+	buf->virt = dma_alloc_coherent(csi->dev, buf->len, &buf->dma_addr,
 				       GFP_DMA | GFP_KERNEL);
 	if (!buf->virt)
 		return -ENOMEM;
@@ -521,9 +521,9 @@ static void imx7_csi_configure(struct imx7_csi *csi)
 	cr18 = imx7_csi_reg_read(csi, CSI_CSICR18);
 
 	cr18 &= ~(BIT_CSI_HW_ENABLE | BIT_MIPI_DATA_FORMAT_MASK |
-		  BIT_DATA_FROM_MIPI | BIT_BASEADDR_CHG_ERR_EN |
-		  BIT_BASEADDR_SWITCH_EN | BIT_BASEADDR_SWITCH_SEL |
-		  BIT_DEINTERLACE_EN);
+		  BIT_DATA_FROM_MIPI | BIT_MIPI_DOUBLE_CMPNT |
+		  BIT_BASEADDR_CHG_ERR_EN | BIT_BASEADDR_SWITCH_SEL |
+		  BIT_BASEADDR_SWITCH_EN | BIT_DEINTERLACE_EN);
 
 	if (out_pix->field == V4L2_FIELD_INTERLACED) {
 		cr18 |= BIT_DEINTERLACE_EN;
@@ -713,7 +713,7 @@ static void imx7_csi_vb2_buf_done(struct imx7_csi *csi)
 {
 	struct imx7_csi_vb2_buffer *done, *next;
 	struct vb2_buffer *vb;
-	dma_addr_t phys;
+	dma_addr_t dma_addr;
 
 	done = csi->active_vb2_buf[csi->buf_num];
 	if (done) {
@@ -728,14 +728,14 @@ static void imx7_csi_vb2_buf_done(struct imx7_csi *csi)
 	/* get next queued buffer */
 	next = imx7_csi_video_next_buf(csi);
 	if (next) {
-		phys = vb2_dma_contig_plane_dma_addr(&next->vbuf.vb2_buf, 0);
+		dma_addr = vb2_dma_contig_plane_dma_addr(&next->vbuf.vb2_buf, 0);
 		csi->active_vb2_buf[csi->buf_num] = next;
 	} else {
-		phys = csi->underrun_buf.phys;
+		dma_addr = csi->underrun_buf.dma_addr;
 		csi->active_vb2_buf[csi->buf_num] = NULL;
 	}
 
-	imx7_csi_update_buf(csi, phys, csi->buf_num);
+	imx7_csi_update_buf(csi, dma_addr, csi->buf_num);
 }
 
 static irqreturn_t imx7_csi_irq_handler(int irq, void *data)
@@ -806,6 +806,30 @@ static irqreturn_t imx7_csi_irq_handler(int irq, void *data)
  * List of supported pixel formats for the subdevs. Keep V4L2_PIX_FMT_UYVY and
  * MEDIA_BUS_FMT_UYVY8_2X8 first to match IMX7_CSI_DEF_PIX_FORMAT and
  * IMX7_CSI_DEF_MBUS_CODE.
+ *
+ * TODO: Restrict the supported formats list based on the SoC integration.
+ *
+ * The CSI bridge can be configured to sample pixel components from the Rx queue
+ * in single (8bpp) or double (16bpp) component modes. Image format variants
+ * with different sample sizes (ie YUYV_2X8 vs YUYV_1X16) determine the pixel
+ * components sampling size per each clock cycle and their packing mode (see
+ * imx7_csi_configure() for details).
+ *
+ * As the CSI bridge can be interfaced with different IP blocks depending on the
+ * SoC model it is integrated on, the Rx queue sampling size should match the
+ * size of the samples transferred by the transmitting IP block. To avoid
+ * misconfigurations of the capture pipeline, the enumeration of the supported
+ * formats should be restricted to match the pixel source transmitting mode.
+ *
+ * Example: i.MX8MM SoC integrates the CSI bridge with the Samsung CSIS CSI-2
+ * receiver which operates in dual pixel sampling mode. The CSI bridge should
+ * only expose the 1X16 formats variant which instructs it to operate in dual
+ * pixel sampling mode. When the CSI bridge is instead integrated on an i.MX7,
+ * which supports both serial and parallel input, it should expose both
+ * variants.
+ *
+ * This currently only applies to YUYV formats, but other formats might need to
+ * be handled in the same way.
  */
 static const struct imx7_csi_pixfmt pixel_formats[] = {
 	/*** YUV formats start here ***/
@@ -1296,11 +1320,87 @@ static int imx7_csi_video_buf_prepare(struct vb2_buffer *vb)
 	return 0;
 }
 
+static bool imx7_csi_fast_track_buffer(struct imx7_csi *csi,
+				       struct imx7_csi_vb2_buffer *buf)
+{
+	unsigned long flags;
+	dma_addr_t dma_addr;
+	int buf_num;
+	u32 isr;
+
+	if (!csi->is_streaming)
+		return false;
+
+	dma_addr = vb2_dma_contig_plane_dma_addr(&buf->vbuf.vb2_buf, 0);
+
+	/*
+	 * buf_num holds the framebuffer ID of the most recently (*not* the
+	 * next anticipated) triggered interrupt. Without loss of generality,
+	 * if buf_num is 0, the hardware is capturing to FB2. If FB1 has been
+	 * programmed with a dummy buffer (as indicated by active_vb2_buf[0]
+	 * being NULL), then we can fast-track the new buffer by programming
+	 * its address in FB1 before the hardware completes FB2, instead of
+	 * adding it to the buffer queue and incurring a delay of one
+	 * additional frame.
+	 *
+	 * The irqlock prevents races with the interrupt handler that updates
+	 * buf_num when it programs the next buffer, but we can still race with
+	 * the hardware if we program the buffer in FB1 just after the hardware
+	 * completes FB2 and switches to FB1 and before buf_num can be updated
+	 * by the interrupt handler for FB2.  The fast-tracked buffer would
+	 * then be ignored by the hardware while the driver would think it has
+	 * successfully been processed.
+	 *
+	 * To avoid this problem, if we can't avoid the race, we can detect
+	 * that we have lost it by checking, after programming the buffer in
+	 * FB1, if the interrupt flag indicating completion of FB2 has been
+	 * raised. If that is not the case, fast-tracking succeeded, and we can
+	 * update active_vb2_buf[0]. Otherwise, we may or may not have lost the
+	 * race (as the interrupt flag may have been raised just after
+	 * programming FB1 and before we read the interrupt status register),
+	 * and we need to assume the worst case of a race loss and queue the
+	 * buffer through the slow path.
+	 */
+
+	spin_lock_irqsave(&csi->irqlock, flags);
+
+	buf_num = csi->buf_num;
+	if (csi->active_vb2_buf[buf_num]) {
+		spin_unlock_irqrestore(&csi->irqlock, flags);
+		return false;
+	}
+
+	imx7_csi_update_buf(csi, dma_addr, buf_num);
+
+	isr = imx7_csi_reg_read(csi, CSI_CSISR);
+	if (isr & (buf_num ? BIT_DMA_TSF_DONE_FB1 : BIT_DMA_TSF_DONE_FB2)) {
+		/*
+		 * The interrupt for the /other/ FB just came (the isr hasn't
+		 * run yet though, because we have the lock here); we can't be
+		 * sure we've programmed buf_num FB in time, so queue the buffer
+		 * to the buffer queue normally. No need to undo writing the FB
+		 * register, since we won't return it as active_vb2_buf is NULL,
+		 * so it's okay to potentially write it to both FB1 and FB2;
+		 * only the one where it was queued normally will be returned.
+		 */
+		spin_unlock_irqrestore(&csi->irqlock, flags);
+		return false;
+	}
+
+	csi->active_vb2_buf[buf_num] = buf;
+
+	spin_unlock_irqrestore(&csi->irqlock, flags);
+	return true;
+}
+
 static void imx7_csi_video_buf_queue(struct vb2_buffer *vb)
 {
 	struct imx7_csi *csi = vb2_get_drv_priv(vb->vb2_queue);
 	struct imx7_csi_vb2_buffer *buf = to_imx7_csi_vb2_buffer(vb);
 	unsigned long flags;
+
+	if (imx7_csi_fast_track_buffer(csi, buf))
+		return;
 
 	spin_lock_irqsave(&csi->q_lock, flags);
 
