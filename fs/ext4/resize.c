@@ -1595,8 +1595,12 @@ exit_journal:
 				   EXT4_DESC_PER_BLOCK(sb));
 		int meta_bg = ext4_has_feature_meta_bg(sb);
 		sector_t old_gdb = 0;
+		sector_t blk_off = sbi->s_sbh->b_blocknr;
 
-		update_backups(sb, sbi->s_sbh->b_blocknr, (char *)es,
+		if (ext4_has_feature_bigalloc(sb))
+			blk_off = 0;
+
+		update_backups(sb, blk_off, (char *)es,
 			       sizeof(struct ext4_super_block), 0);
 		for (; gdb_num <= gdb_num_end; gdb_num++) {
 			struct buffer_head *gdb_bh;
@@ -1831,7 +1835,6 @@ int ext4_group_extend(struct super_block *sb, struct ext4_super_block *es,
 	ext4_grpblk_t last;
 	ext4_grpblk_t add;
 	struct buffer_head *bh;
-	int err;
 	ext4_group_t group;
 
 	o_blocks_count = ext4_blocks_count(es);
@@ -1886,8 +1889,7 @@ int ext4_group_extend(struct super_block *sb, struct ext4_super_block *es,
 	}
 	brelse(bh);
 
-	err = ext4_group_extend_no_check(sb, o_blocks_count, add);
-	return err;
+	return ext4_group_extend_no_check(sb, o_blocks_count, add);
 } /* ext4_group_extend */
 
 
