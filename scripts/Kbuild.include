@@ -10,6 +10,20 @@ empty   :=
 space   := $(empty) $(empty)
 space_escape := _-_SPACE_-_
 pound := \#
+define newline
+
+
+endef
+
+###
+# Comparison macros.
+# Usage: $(call test-le, A, B)
+# works like shell's "test A -le B", use with care bacause it is ASCII sort.
+# If A and B have the same number of digits, it works as expected.
+test-le = $(and $(strip $1),$(strip $2),$(filter $1, $(firstword $(sort $1 $2))),y)
+test-ge = $(call test-le, $2, $1)
+test-lt = $(and $(strip $1),$(strip $2),$(filter-out $2, $(firstword $(sort $1 $2))),y)
+test-gt = $(call test-lt, $2, $1)
 
 ###
 # Name of target with a '.' as filename prefix. foo/bar.o => foo/.bar.o
@@ -39,6 +53,22 @@ escsq = $(subst $(squote),'\$(squote)',$1)
 ###
 # Quote a string to pass it to C files. foo => '"foo"'
 stringify = $(squote)$(quote)$1$(quote)$(squote)
+
+###
+# The path to Kbuild or Makefile. Kbuild has precedence over Makefile.
+kbuild-dir = $(if $(filter /%,$(src)),$(src),$(srctree)/$(src))
+kbuild-file = $(or $(wildcard $(kbuild-dir)/Kbuild),$(kbuild-dir)/Makefile)
+
+###
+# Read a file, replacing newlines with spaces
+#
+# This ifeq will break when GNU Make 4.10 is released.
+# Remove this conditional until then.
+ifeq ($(call test-ge, $(MAKE_VERSION), 4.2),y)
+read-file = $(subst $(newline),$(space),$(file < $1))
+else
+read-file = $(shell cat $1 2>/dev/null)
+endif
 
 ###
 # Easy method for doing a status message
