@@ -112,6 +112,7 @@
 #define CMN_DTM_UNIT_INFO		0x0910
 
 #define CMN_DTM_NUM_COUNTERS		4
+#define CMN_DTM_NUM_WPS			4
 /* Want more local counters? Why not replicate the whole DTM! Ugh... */
 #define CMN_DTM_OFFSET(n)		((n) * 0x200)
 
@@ -1865,7 +1866,7 @@ static void arm_cmn_init_dtm(struct arm_cmn_dtm *dtm, struct arm_cmn_node *xp, i
 
 	dtm->base = xp->pmu_base + CMN_DTM_OFFSET(idx);
 	dtm->pmu_config_low = CMN_DTM_PMU_CONFIG_PMU_EN;
-	for (i = 0; i < 4; i++) {
+	for (i = 0; i < CMN_DTM_NUM_WPS; i++) {
 		dtm->wp_event[i] = -1;
 		writeq_relaxed(0, dtm->base + CMN_DTM_WPn_MASK(i));
 		writeq_relaxed(~0ULL, dtm->base + CMN_DTM_WPn_VAL(i));
@@ -2137,6 +2138,7 @@ static int arm_cmn_discover(struct arm_cmn *cmn, unsigned int rgn_offset)
 			case CMN_TYPE_CCRA:
 			case CMN_TYPE_CCHA:
 			case CMN_TYPE_CCLA:
+				writeq_relaxed(0, dn->pmu_base + CMN_PMU_EVENT_SEL);
 				dn++;
 				break;
 			/* Nothing to see here */
@@ -2156,6 +2158,8 @@ static int arm_cmn_discover(struct arm_cmn *cmn, unsigned int rgn_offset)
 				dn[1] = dn[0];
 				dn[0].pmu_base += CMN_HNP_PMU_EVENT_SEL;
 				dn[1].type = arm_cmn_subtype(dn->type);
+				writeq_relaxed(0, dn[0].pmu_base + CMN_PMU_EVENT_SEL);
+				writeq_relaxed(0, dn[1].pmu_base + CMN_PMU_EVENT_SEL);
 				dn += 2;
 				break;
 			/* Something has gone horribly wrong */
@@ -2312,15 +2316,64 @@ static int arm_cmn_probe(struct platform_device *pdev)
 	return err;
 }
 
-static int arm_cmn_remove(struct platform_device *pdev)
+static void arm_cmn_shutdown(struct platform_device *pdev)
 {
 	struct arm_cmn *cmn = platform_get_drvdata(pdev);
+	struct arm_cmn_dtm *dtm = cmn->dtms;
+	struct arm_cmn_node *dn = cmn->dns;
+	int i, j = 0;
 
+	writel_relaxed(0, cmn->dtc[0].base + CMN_DT_PMCR);
 	writel_relaxed(0, cmn->dtc[0].base + CMN_DT_DTC_CTL);
+
+	/* Go through all DTMs and disable PMU events and WPs */
+	for (i = 0, dtm = cmn->dtms; i < cmn->num_xps; i++, dtm++) {
+		writeq_relaxed(0, dtm->base + CMN_DTM_PMU_CONFIG);
+		for (j = 0; j < CMN_DTM_NUM_WPS; j++) {
+			writeq_relaxed(0, dtm->base + CMN_DTM_WPn_CONFIG(j));
+			writeq_relaxed(0, dtm->base + CMN_DTM_WPn_VAL(j));
+			writeq_relaxed(0, dtm->base + CMN_DTM_WPn_MASK(j));
+		}
+	}
+
+	/* Go through all relevant DN types and disable any leaked PMU events */
+	for (i = 0, dn = cmn->dns; i < cmn->num_dns; i++, dn++) {
+		switch (dn->type) {
+		case CMN_TYPE_DVM:
+		case CMN_TYPE_HNI:
+		case CMN_TYPE_HNF:
+		case CMN_TYPE_HNP:
+		case CMN_TYPE_SBSX:
+		case CMN_TYPE_RNI:
+		case CMN_TYPE_RND:
+		case CMN_TYPE_MTSX:
+		case CMN_TYPE_CXRA:
+		case CMN_TYPE_CXHA:
+		case CMN_TYPE_CCRA:
+		case CMN_TYPE_CCHA:
+		case CMN_TYPE_CCLA:
+		case CMN_TYPE_CCLA_RNI:
+		case CMN_TYPE_XP:
+			writeq_relaxed(0, dn->pmu_base + CMN_PMU_EVENT_SEL);
+			break;
+		case CMN_TYPE_DTC:
+		case CMN_TYPE_MPAM_S:
+		case CMN_TYPE_MPAM_NS:
+		case CMN_TYPE_RNSAM:
+		case CMN_TYPE_CXLA:
+		default:
+			break;
+		}
+	}
 
 	perf_pmu_unregister(&cmn->pmu);
 	cpuhp_state_remove_instance_nocalls(arm_cmn_hp_state, &cmn->cpuhp_node);
 	debugfs_remove(cmn->debug);
+}
+
+static int arm_cmn_remove(struct platform_device *pdev)
+{
+	arm_cmn_shutdown(pdev);
 	return 0;
 }
 
@@ -2353,6 +2406,7 @@ static struct platform_driver arm_cmn_driver = {
 	},
 	.probe = arm_cmn_probe,
 	.remove = arm_cmn_remove,
+	.shutdown = arm_cmn_shutdown,
 };
 
 static int __init arm_cmn_init(void)
