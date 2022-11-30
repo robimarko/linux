@@ -2314,6 +2314,7 @@ void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 {
 	struct sdhci_host *host = mmc_priv(mmc);
 	bool reinit_uhs = host->reinit_uhs;
+	bool turning_on_clk = false;
 	u8 ctrl;
 
 	host->reinit_uhs = false;
@@ -2343,6 +2344,8 @@ void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		sdhci_enable_preset_value(host, false);
 
 	if (!ios->clock || ios->clock != host->clock) {
+		turning_on_clk = ios->clock && !host->clock;
+
 		host->ops->set_clock(host, ios->clock);
 		host->clock = ios->clock;
 
@@ -2370,10 +2373,11 @@ void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	host->ops->set_bus_width(host, ios->bus_width);
 
 	/*
-	 * Avoid unnecessary changes. In particular, this avoids multiple clock
-	 * changes during voltage switching.
+	 * Special case to avoid multiple clock changes during voltage
+	 * switching.
 	 */
 	if (!reinit_uhs &&
+	    turning_on_clk &&
 	    host->timing == ios->timing &&
 	    host->version >= SDHCI_SPEC_300 &&
 	    !sdhci_presetable_values_change(host, ios))
