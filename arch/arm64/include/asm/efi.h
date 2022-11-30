@@ -29,7 +29,7 @@ int efi_set_mapping_permissions(struct mm_struct *mm, efi_memory_desc_t *md);
 
 #undef arch_efi_call_virt
 #define arch_efi_call_virt(p, f, args...)				\
-	__efi_rt_asm_wrapper((p)->f, #f, args)
+	efi_rt_asm_wrapper((p)->f, #f, args)
 
 #define arch_efi_call_virt_teardown()					\
 ({									\
@@ -37,7 +37,7 @@ int efi_set_mapping_permissions(struct mm_struct *mm, efi_memory_desc_t *md);
 	efi_virtmap_unload();						\
 })
 
-efi_status_t __efi_rt_asm_wrapper(void *, const char *, ...);
+extern efi_status_t (* efi_rt_asm_wrapper)(void *, const char *, ...);
 
 #define ARCH_EFI_IRQ_FLAGS_MASK (PSR_D_BIT | PSR_A_BIT | PSR_I_BIT | PSR_F_BIT)
 

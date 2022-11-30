@@ -4,8 +4,15 @@
  */
 
 #include <linux/linkage.h>
+#include <linux/cfi_types.h>
 
-SYM_FUNC_START(__efi_rt_asm_wrapper)
+// The code below (until the end of the file) is mapped into the EFI page
+// tables by the efi_map_rt_wrapper() routine, which assumes that it takes up
+// at most a page, and that it refers to external symbols using absolute
+// addressing only.
+
+	.section ".rodata", "a", %progbits
+SYM_TYPED_FUNC_START(__efi_rt_asm_wrapper)
 	stp	x29, x30, [sp, #-32]!
 	mov	x29, sp
 
@@ -43,5 +50,6 @@ SYM_FUNC_START(__efi_rt_asm_wrapper)
 	 * for interrupts.
 	 */
 	mov	x18, x2
-	b	efi_handle_corrupted_x18	// tail call
+	ldr	x16, =efi_handle_corrupted_x18	// tail call
+	br	x16
 SYM_FUNC_END(__efi_rt_asm_wrapper)
