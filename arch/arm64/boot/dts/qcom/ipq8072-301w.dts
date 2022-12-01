@@ -156,15 +156,15 @@
 
 &tlmm {
 
-	mdio_pins: mdio-pins {
-		mdc {
+	mdio_pins: mdio-state {
+		mdc-pins {
 			pins = "gpio68";
 			function = "mdc";
 			drive-strength = <8>;
 			bias-pull-up;
 		};
 
-		mdio {
+		mdio-pins {
 			pins = "gpio69";
 			function = "mdio";
 			drive-strength = <8>;
@@ -172,15 +172,15 @@
 		};
 	};
 
-	button_pins: button_pins {
-		wps_button {
+	button_pins: button-state {
+		wps-pins {
 			pins = "gpio57";
 			function = "gpio";
 			drive-strength = <8>;
 			bias-pull-up;
 		};
 
-		rst_button {
+		rst-pins {
 			pins = "gpio67";
 			function = "gpio";
 			drive-strength = <8>;
@@ -188,103 +188,13 @@
 		};
 	};
 
-	leds_pins: leds_pinmux {
-		led_pwr_green {
-			pins = "gpio4";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_system_green {
-			pins = "gpio1";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_system_red {
-			pins = "gpio3";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_lan1_green {
-			pins = "gpio6";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_lan1_amber {
-			pins = "gpio7";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		}; 
-		led_lan2_green {
-			pins = "gpio8";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_lan2_amber {
-			pins = "gpio11";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_lan3_green {
-			pins = "gpio12";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_lan3_amber {
-			pins = "gpio13";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_lan4_green {
-			pins = "gpio14";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_lan4_amber {
-			pins = "gpio15";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_10g_1_green {
-			pins = "gpio54";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_10g_1_amber {
-			pins = "gpio56";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_10g_2_green {
-			pins = "gpio51";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_10g_2_amber {
-			pins = "gpio52";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-		led_wifi_green {
-			pins = "gpio42";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
+	leds_pins: leds-state {
+		pins = "gpio1", "gpio3", "gpio4", "gpio6", "gpio7", "gpio8",
+		       "gpio11", "gpio12", "gpio13", "gpio14", "gpio15", "gpio42",
+		       "gpio51", "gpio52", "gpio54", "gpio56";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-down;
     };
 };
 
