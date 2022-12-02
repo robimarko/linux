@@ -110,7 +110,7 @@ static inline struct io_uring_cqe *io_get_cqe(struct io_ring_ctx *ctx)
 	return io_get_cqe_overflow(ctx, false);
 }
 
-static inline bool __io_fill_cqe_req(struct io_ring_ctx *ctx,
+static inline bool io_fill_cqe_req(struct io_ring_ctx *ctx,
 				     struct io_kiocb *req)
 {
 	struct io_uring_cqe *cqe;
