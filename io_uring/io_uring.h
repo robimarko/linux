@@ -110,7 +110,7 @@ static inline struct io_uring_cqe *io_get_cqe(struct io_ring_ctx *ctx)
 	return io_get_cqe_overflow(ctx, false);
 }
 
-static inline bool __io_fill_cqe_req(struct io_ring_ctx *ctx,
+static inline bool io_fill_cqe_req(struct io_ring_ctx *ctx,
 				     struct io_kiocb *req)
 {
 	struct io_uring_cqe *cqe;
@@ -143,14 +143,6 @@ static inline bool __io_fill_cqe_req(struct io_ring_ctx *ctx,
 		WRITE_ONCE(cqe->big_cqe[1], extra2);
 	}
 	return true;
-}
-
-static inline bool io_fill_cqe_req(struct io_ring_ctx *ctx,
-				   struct io_kiocb *req)
-{
-	if (likely(__io_fill_cqe_req(ctx, req)))
-		return true;
-	return io_req_cqe_overflow(req);
 }
 
 static inline void req_set_fail(struct io_kiocb *req)
