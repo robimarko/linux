@@ -570,16 +570,27 @@ static void io_eventfd_flush_signal(struct io_ring_ctx *ctx)
 
 void __io_commit_cqring_flush(struct io_ring_ctx *ctx)
 {
-	if (ctx->off_timeout_used || ctx->drain_active) {
+	if (ctx->off_timeout_used)
+		io_flush_timeouts(ctx);
+	if (ctx->drain_active) {
 		spin_lock(&ctx->completion_lock);
-		if (ctx->off_timeout_used)
-			io_flush_timeouts(ctx);
-		if (ctx->drain_active)
-			io_queue_deferred(ctx);
+		io_queue_deferred(ctx);
 		spin_unlock(&ctx->completion_lock);
 	}
 	if (ctx->has_evfd)
 		io_eventfd_flush_signal(ctx);
+}
+
+static inline void io_cq_lock(struct io_ring_ctx *ctx)
+	__acquires(ctx->completion_lock)
+{
+	spin_lock(&ctx->completion_lock);
+}
+
+static inline void io_cq_unlock(struct io_ring_ctx *ctx)
+	__releases(ctx->completion_lock)
+{
+	spin_unlock(&ctx->completion_lock);
 }
 
 /* keep it inlined for io_submit_flush_completions() */
@@ -883,7 +894,7 @@ static void __io_req_complete_post(struct io_kiocb *req)
 
 	io_cq_lock(ctx);
 	if (!(req->flags & REQ_F_CQE_SKIP))
-		__io_fill_cqe_req(ctx, req);
+		io_fill_cqe_req(ctx, req);
 
 	/*
 	 * If we're the last reference to this request, add to our locked
@@ -1038,9 +1049,9 @@ static void __io_req_find_next_prep(struct io_kiocb *req)
 {
 	struct io_ring_ctx *ctx = req->ctx;
 
-	io_cq_lock(ctx);
+	spin_lock(&ctx->completion_lock);
 	io_disarm_next(req);
-	io_cq_unlock_post(ctx);
+	spin_unlock(&ctx->completion_lock);
 }
 
 static inline struct io_kiocb *io_req_find_next(struct io_kiocb *req)
@@ -1394,7 +1405,7 @@ static void __io_submit_flush_completions(struct io_ring_ctx *ctx)
 					    comp_list);
 
 		if (!(req->flags & REQ_F_CQE_SKIP))
-			__io_fill_cqe_req(ctx, req);
+			io_fill_cqe_req(ctx, req);
 	}
 	io_cq_unlock_post_inline(ctx);
 
