@@ -531,7 +531,6 @@ struct bpf_verifier_env {
 	bool explore_alu_limits;
 	bool allow_ptr_leaks;
 	bool allow_uninit_stack;
-	bool allow_ptr_to_map_access;
 	bool bpf_capable;
 	bool bypass_spec_v1;
 	bool bypass_spec_v4;
@@ -683,7 +682,7 @@ static inline bool bpf_prog_check_recur(const struct bpf_prog *prog)
 	}
 }
 
-#define BPF_REG_TRUSTED_MODIFIERS (MEM_ALLOC | MEM_RCU | PTR_TRUSTED)
+#define BPF_REG_TRUSTED_MODIFIERS (MEM_ALLOC | PTR_TRUSTED)
 
 static inline bool bpf_type_has_unsafe_modifiers(u32 type)
 {
