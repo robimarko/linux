@@ -1051,6 +1051,7 @@ static void delete_work_func(struct work_struct *work)
 	struct delayed_work *dwork = to_delayed_work(work);
 	struct gfs2_glock *gl = container_of(dwork, struct gfs2_glock, gl_delete);
 	struct gfs2_sbd *sdp = gl->gl_name.ln_sbd;
+	bool requeue = !test_bit(SDF_GOING_READONLY, &sdp->sd_flags);
 	struct inode *inode;
 	u64 no_addr = gl->gl_name.ln_number;
 
@@ -1077,7 +1078,7 @@ static void delete_work_func(struct work_struct *work)
 		 * step entirely.
 		 */
 		if (gfs2_try_evict(gl)) {
-			if (gfs2_queue_delete_work(gl, 5 * HZ))
+			if (requeue && gfs2_queue_delete_work(gl, 5 * HZ))
 				return;
 		}
 		goto out;
@@ -1086,8 +1087,8 @@ static void delete_work_func(struct work_struct *work)
 	inode = gfs2_lookup_by_inum(sdp, no_addr, gl->gl_no_formal_ino,
 				    GFS2_BLKST_UNLINKED);
 	if (IS_ERR(inode)) {
-		if (PTR_ERR(inode) == -EAGAIN &&
-			(gfs2_queue_delete_work(gl, 5 * HZ)))
+		if (PTR_ERR(inode) == -EAGAIN && requeue &&
+			gfs2_queue_delete_work(gl, 5 * HZ))
 				return;
 	} else {
 		d_prune_aliases(inode);
