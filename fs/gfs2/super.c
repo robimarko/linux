@@ -535,7 +535,7 @@ void gfs2_make_fs_ro(struct gfs2_sbd *sdp)
 	set_bit(SDF_GOING_READONLY, &sdp->sd_flags);
 	smp_mb__after_atomic();
 
-	gfs2_flush_delete_work(sdp);
+	gfs2_drain_delete_work(sdp);
 	if (!log_write_allowed && current == sdp->sd_quotad_process)
 		fs_warn(sdp, "The quotad daemon is withdrawing.\n");
 	else if (sdp->sd_quotad_process)
