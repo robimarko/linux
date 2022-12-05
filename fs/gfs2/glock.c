@@ -2023,10 +2023,10 @@ static void flush_delete_work(struct gfs2_glock *gl)
 	}
 }
 
-void gfs2_flush_delete_work(struct gfs2_sbd *sdp)
+void gfs2_drain_delete_work(struct gfs2_sbd *sdp)
 {
 	glock_hash_walk(flush_delete_work, sdp);
-	flush_workqueue(sdp->sd_delete_wq);
+	drain_workqueue(sdp->sd_delete_wq);
 }
 
 /**
