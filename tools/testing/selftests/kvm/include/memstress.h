@@ -40,6 +40,8 @@ struct memstress_args {
 
 	/* Run vCPUs in L2 instead of L1, if the architecture supports it. */
 	bool nested;
+	/* Test is done, stop running vCPUs. */
+	bool stop_vcpus;
 	/* Randomize which pages are accessed by the guest. */
 	bool random_access;
 	/* True if all vCPUs are pinned to pCPUs */
