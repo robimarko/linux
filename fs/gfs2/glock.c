@@ -186,10 +186,11 @@ void gfs2_glock_free(struct gfs2_glock *gl)
  *
  */
 
-void gfs2_glock_hold(struct gfs2_glock *gl)
+struct gfs2_glock *gfs2_glock_hold(struct gfs2_glock *gl)
 {
 	GLOCK_BUG_ON(gl, __lockref_is_dead(&gl->gl_lockref));
 	lockref_get(&gl->gl_lockref);
+	return gl;
 }
 
 /**
@@ -927,6 +928,47 @@ out_unlock:
 	return;
 }
 
+/**
+ * glock_set_object - set the gl_object field of a glock
+ * @gl: the glock
+ * @object: the object
+ */
+void glock_set_object(struct gfs2_glock *gl, void *object)
+{
+	void *prev_object;
+
+	spin_lock(&gl->gl_lockref.lock);
+	prev_object = gl->gl_object;
+	gl->gl_object = object;
+	spin_unlock(&gl->gl_lockref.lock);
+	if (gfs2_assert_warn(gl->gl_name.ln_sbd, prev_object == NULL)) {
+		pr_warn("glock=%u/%llx",
+			gl->gl_name.ln_type,
+			(unsigned long long)gl->gl_name.ln_number);
+		gfs2_dump_glock(NULL, gl, true);
+	}
+}
+
+/**
+ * glock_clear_object - clear the gl_object field of a glock
+ * @gl: the glock
+ */
+void glock_clear_object(struct gfs2_glock *gl, void *object)
+{
+	void *prev_object;
+
+	spin_lock(&gl->gl_lockref.lock);
+	prev_object = gl->gl_object;
+	gl->gl_object = NULL;
+	spin_unlock(&gl->gl_lockref.lock);
+	if (gfs2_assert_warn(gl->gl_name.ln_sbd, prev_object == object)) {
+		pr_warn("glock=%u/%llx",
+			gl->gl_name.ln_type,
+			(unsigned long long)gl->gl_name.ln_number);
+		gfs2_dump_glock(NULL, gl, true);
+	}
+}
+
 void gfs2_inode_remember_delete(struct gfs2_glock *gl, u64 generation)
 {
 	struct gfs2_inode_lvb *ri = (void *)gl->gl_lksb.sb_lvbptr;
@@ -1256,13 +1298,12 @@ void __gfs2_holder_init(struct gfs2_glock *gl, unsigned int state, u16 flags,
 			struct gfs2_holder *gh, unsigned long ip)
 {
 	INIT_LIST_HEAD(&gh->gh_list);
-	gh->gh_gl = gl;
+	gh->gh_gl = gfs2_glock_hold(gl);
 	gh->gh_ip = ip;
 	gh->gh_owner_pid = get_pid(task_pid(current));
 	gh->gh_state = state;
 	gh->gh_flags = flags;
 	gh->gh_iflags = 0;
-	gfs2_glock_hold(gl);
 }
 
 /**
@@ -1707,6 +1748,13 @@ void gfs2_glock_dq(struct gfs2_holder *gh)
 	struct gfs2_glock *gl = gh->gh_gl;
 
 	spin_lock(&gl->gl_lockref.lock);
+	if (!gfs2_holder_queued(gh)) {
+		/*
+		 * May have already been dequeued because the locking request
+		 * was GL_ASYNC and it has failed in the meantime.
+		 */
+		goto out;
+	}
 	if (list_is_first(&gh->gh_list, &gl->gl_holders) &&
 	    !test_bit(HIF_HOLDER, &gh->gh_iflags)) {
 		spin_unlock(&gl->gl_lockref.lock);
@@ -1716,6 +1764,7 @@ void gfs2_glock_dq(struct gfs2_holder *gh)
 	}
 
 	__gfs2_glock_dq(gh);
+out:
 	spin_unlock(&gl->gl_lockref.lock);
 }
 
