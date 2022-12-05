@@ -354,7 +354,7 @@ static int mtk_nor_dma_exec(struct mtk_nor *sp, u32 from, unsigned int length,
 			    dma_addr_t dma_addr)
 {
 	int ret = 0;
-	ulong delay;
+	u32 delay, timeout;
 	u32 reg;
 
 	writel(from, sp->base + MTK_NOR_REG_DMA_FADR);
@@ -376,15 +376,16 @@ static int mtk_nor_dma_exec(struct mtk_nor *sp, u32 from, unsigned int length,
 	mtk_nor_rmw(sp, MTK_NOR_REG_DMA_CTL, MTK_NOR_DMA_START, 0);
 
 	delay = CLK_TO_US(sp, (length + 5) * BITS_PER_BYTE);
+	timeout = (delay + 1) * 100;
 
 	if (sp->has_irq) {
 		if (!wait_for_completion_timeout(&sp->op_done,
-						 (delay + 1) * 100))
+		    usecs_to_jiffies(max(timeout, 10000U))))
 			ret = -ETIMEDOUT;
 	} else {
 		ret = readl_poll_timeout(sp->base + MTK_NOR_REG_DMA_CTL, reg,
 					 !(reg & MTK_NOR_DMA_START), delay / 3,
-					 (delay + 1) * 100);
+					 timeout);
 	}
 
 	if (ret < 0)
@@ -443,36 +444,28 @@ static int mtk_nor_read_pio(struct mtk_nor *sp, const struct spi_mem_op *op)
 	return ret;
 }
 
-static int mtk_nor_write_buffer_enable(struct mtk_nor *sp)
+static int mtk_nor_setup_write_buffer(struct mtk_nor *sp, bool on)
 {
 	int ret;
 	u32 val;
 
-	if (sp->wbuf_en)
+	if (!(sp->wbuf_en ^ on))
 		return 0;
 
 	val = readl(sp->base + MTK_NOR_REG_CFG2);
-	writel(val | MTK_NOR_WR_BUF_EN, sp->base + MTK_NOR_REG_CFG2);
-	ret = readl_poll_timeout(sp->base + MTK_NOR_REG_CFG2, val,
-				 val & MTK_NOR_WR_BUF_EN, 0, 10000);
-	if (!ret)
-		sp->wbuf_en = true;
-	return ret;
-}
+	if (on) {
+		writel(val | MTK_NOR_WR_BUF_EN, sp->base + MTK_NOR_REG_CFG2);
+		ret = readl_poll_timeout(sp->base + MTK_NOR_REG_CFG2, val,
+					 val & MTK_NOR_WR_BUF_EN, 0, 10000);
+	} else {
+		writel(val & ~MTK_NOR_WR_BUF_EN, sp->base + MTK_NOR_REG_CFG2);
+		ret = readl_poll_timeout(sp->base + MTK_NOR_REG_CFG2, val,
+					 !(val & MTK_NOR_WR_BUF_EN), 0, 10000);
+	}
 
-static int mtk_nor_write_buffer_disable(struct mtk_nor *sp)
-{
-	int ret;
-	u32 val;
-
-	if (!sp->wbuf_en)
-		return 0;
-	val = readl(sp->base + MTK_NOR_REG_CFG2);
-	writel(val & ~MTK_NOR_WR_BUF_EN, sp->base + MTK_NOR_REG_CFG2);
-	ret = readl_poll_timeout(sp->base + MTK_NOR_REG_CFG2, val,
-				 !(val & MTK_NOR_WR_BUF_EN), 0, 10000);
 	if (!ret)
-		sp->wbuf_en = false;
+		sp->wbuf_en = on;
+
 	return ret;
 }
 
@@ -482,7 +475,7 @@ static int mtk_nor_pp_buffered(struct mtk_nor *sp, const struct spi_mem_op *op)
 	u32 val;
 	int ret, i;
 
-	ret = mtk_nor_write_buffer_enable(sp);
+	ret = mtk_nor_setup_write_buffer(sp, true);
 	if (ret < 0)
 		return ret;
 
@@ -501,7 +494,7 @@ static int mtk_nor_pp_unbuffered(struct mtk_nor *sp,
 	const u8 *buf = op->data.buf.out;
 	int ret;
 
-	ret = mtk_nor_write_buffer_disable(sp);
+	ret = mtk_nor_setup_write_buffer(sp, false);
 	if (ret < 0)
 		return ret;
 	writeb(buf[0], sp->base + MTK_NOR_REG_WDATA);
@@ -608,7 +601,7 @@ static int mtk_nor_exec_op(struct spi_mem *mem, const struct spi_mem_op *op)
 	}
 
 	if ((op->data.dir == SPI_MEM_DATA_IN) && mtk_nor_match_read(op)) {
-		ret = mtk_nor_write_buffer_disable(sp);
+		ret = mtk_nor_setup_write_buffer(sp, false);
 		if (ret < 0)
 			return ret;
 		mtk_nor_setup_bus(sp, op);
