@@ -930,8 +930,10 @@ static void delete_work_func(struct work_struct *work)
 	inode = gfs2_lookup_by_inum(sdp, no_addr, gl->gl_no_formal_ino,
 				    GFS2_BLKST_UNLINKED);
 	if (IS_ERR(inode)) {
-		if (PTR_ERR(inode) == -EAGAIN &&
-			(gfs2_queue_delete_work(gl, 5 * HZ)))
+		bool requeue = !test_bit(SDF_READONLY, &sdp->sd_flags);
+
+		if (PTR_ERR(inode) == -EAGAIN && requeue &&
+		    gfs2_queue_delete_work(gl, 5 * HZ))
 				return;
 	} else {
 		d_prune_aliases(inode);

@@ -729,6 +729,11 @@ static void iopen_go_aux_work(struct gfs2_glock *gl)
 	 * step entirely.
 	 */
 	if (gfs2_try_evict(gl)) {
+		struct gfs2_sbd *sdp = gl->gl_name.ln_sbd;
+		bool requeue = !test_bit(SDF_READONLY, &sdp->sd_flags);
+
+		if (!requeue)
+			return;
 		gfs2_glock_hold(gl);
 		if (gfs2_queue_delete_work(gl, 5 * HZ))
 			return;
