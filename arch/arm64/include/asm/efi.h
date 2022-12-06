@@ -14,8 +14,16 @@
 
 #ifdef CONFIG_EFI
 extern void efi_init(void);
+
+bool efi_runtime_fixup_exception(struct pt_regs *regs, const char *msg);
 #else
 #define efi_init()
+
+static inline
+bool efi_runtime_fixup_exception(struct pt_regs *regs, const char *msg)
+{
+	return false;
+}
 #endif
 
 int efi_create_mapping(struct mm_struct *mm, efi_memory_desc_t *md);
@@ -29,7 +37,7 @@ int efi_set_mapping_permissions(struct mm_struct *mm, efi_memory_desc_t *md);
 
 #undef arch_efi_call_virt
 #define arch_efi_call_virt(p, f, args...)				\
-	__efi_rt_asm_wrapper((p)->f, #f, args)
+	efi_rt_asm_wrapper((p)->f, #f, args)
 
 #define arch_efi_call_virt_teardown()					\
 ({									\
@@ -37,7 +45,7 @@ int efi_set_mapping_permissions(struct mm_struct *mm, efi_memory_desc_t *md);
 	efi_virtmap_unload();						\
 })
 
-efi_status_t __efi_rt_asm_wrapper(void *, const char *, ...);
+extern efi_status_t (* efi_rt_asm_wrapper)(void *, const char *, ...);
 
 #define ARCH_EFI_IRQ_FLAGS_MASK (PSR_D_BIT | PSR_A_BIT | PSR_I_BIT | PSR_F_BIT)
 
@@ -76,10 +84,19 @@ static inline unsigned long efi_get_max_initrd_addr(unsigned long image_addr)
 	return (image_addr & ~(SZ_1G - 1UL)) + (1UL << (VA_BITS_MIN - 1));
 }
 
-#define alloc_screen_info(x...)		&screen_info
-
-static inline void free_screen_info(struct screen_info *si)
+static inline unsigned long efi_get_kimg_min_align(void)
 {
+	extern bool efi_nokaslr;
+
+	/*
+	 * Although relocatable kernels can fix up the misalignment with
+	 * respect to MIN_KIMG_ALIGN, the resulting virtual text addresses are
+	 * subtly out of sync with those recorded in the vmlinux when kaslr is
+	 * disabled but the image required relocation anyway. Therefore retain
+	 * 2M alignment if KASLR was explicitly disabled, even if it was not
+	 * going to be activated to begin with.
+	 */
+	return efi_nokaslr ? MIN_KIMG_ALIGN : EFI_KIMG_ALIGN;
 }
 
 #define EFI_ALLOC_ALIGN		SZ_64K
