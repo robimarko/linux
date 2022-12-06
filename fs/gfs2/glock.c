@@ -67,7 +67,6 @@ static void handle_callback(struct gfs2_glock *gl, unsigned int state,
 
 static struct dentry *gfs2_root;
 static struct workqueue_struct *glock_workqueue;
-struct workqueue_struct *gfs2_delete_workqueue;
 static LIST_HEAD(lru_list);
 static atomic_t lru_count = ATOMIC_INIT(0);
 static DEFINE_SPINLOCK(lru_lock);
@@ -2185,10 +2184,11 @@ static void glock_hash_walk(glock_examiner examiner, const struct gfs2_sbd *sdp)
 
 bool gfs2_queue_delete_work(struct gfs2_glock *gl, unsigned long delay)
 {
+	struct gfs2_sbd *sdp = gl->gl_name.ln_sbd;
 	bool queued;
 
 	spin_lock(&gl->gl_lockref.lock);
-	queued = queue_delayed_work(gfs2_delete_workqueue,
+	queued = queue_delayed_work(sdp->sd_delete_wq,
 				    &gl->gl_delete, delay);
 	if (queued)
 		set_bit(GLF_PENDING_DELETE, &gl->gl_flags);
@@ -2212,8 +2212,10 @@ bool gfs2_delete_work_queued(const struct gfs2_glock *gl)
 static void flush_delete_work(struct gfs2_glock *gl)
 {
 	if (gl->gl_name.ln_type == LM_TYPE_IOPEN) {
+		struct gfs2_sbd *sdp = gl->gl_name.ln_sbd;
+
 		if (cancel_delayed_work(&gl->gl_delete)) {
-			queue_delayed_work(gfs2_delete_workqueue,
+			queue_delayed_work(sdp->sd_delete_wq,
 					   &gl->gl_delete, 0);
 		}
 	}
@@ -2222,7 +2224,7 @@ static void flush_delete_work(struct gfs2_glock *gl)
 void gfs2_flush_delete_work(struct gfs2_sbd *sdp)
 {
 	glock_hash_walk(flush_delete_work, sdp);
-	flush_workqueue(gfs2_delete_workqueue);
+	flush_workqueue(sdp->sd_delete_wq);
 }
 
 /**
@@ -2587,18 +2589,9 @@ int __init gfs2_glock_init(void)
 		rhashtable_destroy(&gl_hash_table);
 		return -ENOMEM;
 	}
-	gfs2_delete_workqueue = alloc_workqueue("delete_workqueue",
-						WQ_MEM_RECLAIM | WQ_FREEZABLE,
-						0);
-	if (!gfs2_delete_workqueue) {
-		destroy_workqueue(glock_workqueue);
-		rhashtable_destroy(&gl_hash_table);
-		return -ENOMEM;
-	}
 
 	ret = register_shrinker(&glock_shrinker, "gfs2-glock");
 	if (ret) {
-		destroy_workqueue(gfs2_delete_workqueue);
 		destroy_workqueue(glock_workqueue);
 		rhashtable_destroy(&gl_hash_table);
 		return ret;
@@ -2615,7 +2608,6 @@ void gfs2_glock_exit(void)
 	unregister_shrinker(&glock_shrinker);
 	rhashtable_destroy(&gl_hash_table);
 	destroy_workqueue(glock_workqueue);
-	destroy_workqueue(gfs2_delete_workqueue);
 }
 
 static void gfs2_glock_iter_next(struct gfs2_glock_iter *gi, loff_t n)
