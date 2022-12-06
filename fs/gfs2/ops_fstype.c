@@ -85,6 +85,7 @@ static struct gfs2_sbd *init_sbd(struct super_block *sb)
 	sb->s_fs_info = sdp;
 
 	set_bit(SDF_NOJOURNALID, &sdp->sd_flags);
+	set_bit(SDF_GOING_READONLY, &sdp->sd_flags);
 	gfs2_tune_init(&sdp->sd_tune);
 
 	init_waitqueue_head(&sdp->sd_glock_wait);
@@ -1728,6 +1729,9 @@ static void gfs2_kill_sb(struct super_block *sb)
 		kill_block_super(sb);
 		return;
 	}
+
+	set_bit(SDF_GOING_READONLY, &sdp->sd_flags);
+	smp_mb__after_atomic();
 
 	gfs2_log_flush(sdp, NULL, GFS2_LOG_HEAD_FLUSH_SYNC | GFS2_LFC_KILL_SB);
 	dput(sdp->sd_root_dir);
