@@ -303,6 +303,40 @@ static void __init efi_clean_memmap(void)
 	}
 }
 
+/*
+ * Firmware can use EfiMemoryMappedIO to request that MMIO regions be
+ * mapped by the OS so they can be accessed by EFI runtime services, but
+ * should have no other significance to the OS (UEFI r2.10, sec 7.2).
+ * However, most bootloaders and EFI stubs convert EfiMemoryMappedIO
+ * regions to E820_TYPE_RESERVED entries, which prevent Linux from
+ * allocating space from them (see remove_e820_regions()).
+ *
+ * Some platforms use EfiMemoryMappedIO entries for PCI MMCONFIG space and
+ * PCI host bridge windows, which means Linux can't allocate BAR space for
+ * hot-added devices.
+ *
+ * Remove any EfiMemoryMappedIO regions from the E820 map to avoid this
+ * problem.
+ */
+static void __init efi_remove_e820_mmio(void)
+{
+	efi_memory_desc_t *md;
+	u64 size, start, end;
+	int i = 0;
+
+	for_each_efi_memory_desc(md) {
+		if (md->type == EFI_MEMORY_MAPPED_IO) {
+			size = md->num_pages << EFI_PAGE_SHIFT;
+			start = md->phys_addr;
+			end = start + size - 1;
+			pr_info("Remove mem%02u: MMIO range=[0x%08llx-0x%08llx] (%lluMB) from e820 map\n",
+				i, start, end, size >> 20);
+			e820__range_remove(start, size, E820_TYPE_RESERVED, 1);
+		}
+		i++;
+	}
+}
+
 void __init efi_print_memmap(void)
 {
 	efi_memory_desc_t *md;
@@ -473,6 +507,8 @@ void __init efi_init(void)
 
 	set_bit(EFI_RUNTIME_SERVICES, &efi.flags);
 	efi_clean_memmap();
+
+	efi_remove_e820_mmio();
 
 	if (efi_enabled(EFI_DBG))
 		efi_print_memmap();
