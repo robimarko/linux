@@ -270,6 +270,7 @@ enum ib_device_cap_flags {
 	/* The device supports padding incoming writes to cacheline. */
 	IB_DEVICE_PCI_WRITE_END_PADDING =
 		IB_UVERBS_DEVICE_PCI_WRITE_END_PADDING,
+	IB_DEVICE_ATOMIC_WRITE = IB_UVERBS_DEVICE_ATOMIC_WRITE,
 };
 
 enum ib_kernel_cap_flags {
@@ -982,6 +983,7 @@ enum ib_wc_opcode {
 	IB_WC_BIND_MW = IB_UVERBS_WC_BIND_MW,
 	IB_WC_LOCAL_INV = IB_UVERBS_WC_LOCAL_INV,
 	IB_WC_LSO = IB_UVERBS_WC_TSO,
+	IB_WC_ATOMIC_WRITE = IB_UVERBS_WC_ATOMIC_WRITE,
 	IB_WC_REG_MR,
 	IB_WC_MASKED_COMP_SWAP,
 	IB_WC_MASKED_FETCH_ADD,
@@ -1325,6 +1327,7 @@ enum ib_wr_opcode {
 		IB_UVERBS_WR_MASKED_ATOMIC_CMP_AND_SWP,
 	IB_WR_MASKED_ATOMIC_FETCH_AND_ADD =
 		IB_UVERBS_WR_MASKED_ATOMIC_FETCH_AND_ADD,
+	IB_WR_ATOMIC_WRITE = IB_UVERBS_WR_ATOMIC_WRITE,
 
 	/* These are kernel only and can not be issued by userspace */
 	IB_WR_REG_MR = 0x20,
@@ -2203,6 +2206,7 @@ struct ib_port_data {
 	struct ib_port_cache cache;
 
 	struct net_device __rcu *netdev;
+	netdevice_tracker netdev_tracker;
 	struct hlist_node ndev_hash_link;
 	struct rdma_port_counter port_counter;
 	struct ib_port *sysfs;
@@ -4334,7 +4338,7 @@ static inline int ib_check_mr_access(struct ib_device *ib_dev,
 
 	if (flags & IB_ACCESS_ON_DEMAND &&
 	    !(ib_dev->attrs.kernel_cap_flags & IBK_ON_DEMAND_PAGING))
-		return -EINVAL;
+		return -EOPNOTSUPP;
 	return 0;
 }
 
