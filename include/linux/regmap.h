@@ -24,6 +24,7 @@ struct module;
 struct clk;
 struct device;
 struct device_node;
+struct fsi_device;
 struct i2c_client;
 struct i3c_device;
 struct irq_domain;
@@ -628,6 +629,10 @@ struct regmap *__regmap_init_spi_avmm(struct spi_device *spi,
 				      const struct regmap_config *config,
 				      struct lock_class_key *lock_key,
 				      const char *lock_name);
+struct regmap *__regmap_init_fsi(struct fsi_device *fsi_dev,
+				 const struct regmap_config *config,
+				 struct lock_class_key *lock_key,
+				 const char *lock_name);
 
 struct regmap *__devm_regmap_init(struct device *dev,
 				  const struct regmap_bus *bus,
@@ -693,6 +698,11 @@ struct regmap *__devm_regmap_init_spi_avmm(struct spi_device *spi,
 					   const struct regmap_config *config,
 					   struct lock_class_key *lock_key,
 					   const char *lock_name);
+struct regmap *__devm_regmap_init_fsi(struct fsi_device *fsi_dev,
+				      const struct regmap_config *config,
+				      struct lock_class_key *lock_key,
+				      const char *lock_name);
+
 /*
  * Wrapper for regmap_init macros to include a unique lockdep key and name
  * for each call. No-op if CONFIG_LOCKDEP is not set.
@@ -918,6 +928,19 @@ bool regmap_ac97_default_volatile(struct device *dev, unsigned int reg);
 #define regmap_init_spi_avmm(spi, config)					\
 	__regmap_lockdep_wrapper(__regmap_init_spi_avmm, #config,		\
 				 spi, config)
+
+/**
+ * regmap_init_fsi() - Initialise register map
+ *
+ * @fsi_dev: Device that will be interacted with
+ * @config: Configuration for register map
+ *
+ * The return value will be an ERR_PTR() on error or a valid pointer to
+ * a struct regmap.
+ */
+#define regmap_init_fsi(fsi_dev, config)				\
+	__regmap_lockdep_wrapper(__regmap_init_fsi, #config, fsi_dev,	\
+				 config)
 
 /**
  * devm_regmap_init() - Initialise managed register map
@@ -1148,6 +1171,20 @@ bool regmap_ac97_default_volatile(struct device *dev, unsigned int reg);
 	__regmap_lockdep_wrapper(__devm_regmap_init_spi_avmm, #config,	\
 				 spi, config)
 
+/**
+ * devm_regmap_init_fsi() - Initialise managed register map
+ *
+ * @fsi_dev: Device that will be interacted with
+ * @config: Configuration for register map
+ *
+ * The return value will be an ERR_PTR() on error or a valid pointer
+ * to a struct regmap.  The regmap will be automatically freed by the
+ * device management code.
+ */
+#define devm_regmap_init_fsi(fsi_dev, config)				\
+	__regmap_lockdep_wrapper(__devm_regmap_init_fsi, #config,	\
+				 fsi_dev, config)
+
 int regmap_mmio_attach_clk(struct regmap *map, struct clk *clk);
 void regmap_mmio_detach_clk(struct regmap *map);
 void regmap_exit(struct regmap *map);
@@ -1219,6 +1256,7 @@ static inline int regmap_write_bits(struct regmap *map, unsigned int reg,
 int regmap_get_val_bytes(struct regmap *map);
 int regmap_get_max_register(struct regmap *map);
 int regmap_get_reg_stride(struct regmap *map);
+bool regmap_might_sleep(struct regmap *map);
 int regmap_async_complete(struct regmap *map);
 bool regmap_can_raw_write(struct regmap *map);
 size_t regmap_get_raw_read_max(struct regmap *map);
@@ -1903,6 +1941,12 @@ static inline int regmap_get_reg_stride(struct regmap *map)
 {
 	WARN_ONCE(1, "regmap API is disabled");
 	return -EINVAL;
+}
+
+static inline bool regmap_might_sleep(struct regmap *map)
+{
+	WARN_ONCE(1, "regmap API is disabled");
+	return true;
 }
 
 static inline int regcache_sync(struct regmap *map)
