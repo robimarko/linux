@@ -76,6 +76,7 @@ TARGETS += sync
 TARGETS += syscall_user_dispatch
 TARGETS += sysctl
 TARGETS += tc-testing
+TARGETS += tdx
 TARGETS += timens
 ifneq (1, $(quicktest))
 TARGETS += timers
