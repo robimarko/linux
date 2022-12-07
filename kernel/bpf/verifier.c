@@ -451,6 +451,11 @@ static bool reg_type_not_null(enum bpf_reg_type type)
 		type == PTR_TO_SOCK_COMMON;
 }
 
+static bool type_is_ptr_alloc_obj(u32 type)
+{
+	return base_type(type) == PTR_TO_BTF_ID && type_flag(type) & MEM_ALLOC;
+}
+
 static struct btf_record *reg_btf_record(const struct bpf_reg_state *reg)
 {
 	struct btf_record *rec = NULL;
@@ -458,7 +463,7 @@ static struct btf_record *reg_btf_record(const struct bpf_reg_state *reg)
 
 	if (reg->type == PTR_TO_MAP_VALUE) {
 		rec = reg->map_ptr->record;
-	} else if (reg->type == (PTR_TO_BTF_ID | MEM_ALLOC)) {
+	} else if (type_is_ptr_alloc_obj(reg->type)) {
 		meta = btf_find_struct_meta(reg->btf, reg->btf_id);
 		if (meta)
 			rec = meta->record;
@@ -2525,6 +2530,16 @@ static int check_reg_arg(struct bpf_verifier_env *env, u32 regno,
 	return 0;
 }
 
+static void mark_jmp_point(struct bpf_verifier_env *env, int idx)
+{
+	env->insn_aux_data[idx].jmp_point = true;
+}
+
+static bool is_jmp_point(struct bpf_verifier_env *env, int insn_idx)
+{
+	return env->insn_aux_data[insn_idx].jmp_point;
+}
+
 /* for any branch, call, exit record the history of jmps in the given state */
 static int push_jmp_history(struct bpf_verifier_env *env,
 			    struct bpf_verifier_state *cur)
@@ -2532,6 +2547,9 @@ static int push_jmp_history(struct bpf_verifier_env *env,
 	u32 cnt = cur->jmp_history_cnt;
 	struct bpf_idx_pair *p;
 	size_t alloc_size;
+
+	if (!is_jmp_point(env, env->insn_idx))
+		return 0;
 
 	cnt++;
 	alloc_size = kmalloc_size_roundup(size_mul(cnt, sizeof(*p)));
@@ -4275,7 +4293,7 @@ static bool is_trusted_reg(const struct bpf_reg_state *reg)
 		return true;
 
 	/* If a register is not referenced, it is trusted if it has the
-	 * MEM_ALLOC, MEM_RCU or PTR_TRUSTED type modifiers, and no others. Some of the
+	 * MEM_ALLOC or PTR_TRUSTED type modifiers, and no others. Some of the
 	 * other type modifiers may be safe, but we elect to take an opt-in
 	 * approach here as some (e.g. PTR_UNTRUSTED and PTR_MAYBE_NULL) are
 	 * not.
@@ -4285,6 +4303,11 @@ static bool is_trusted_reg(const struct bpf_reg_state *reg)
 	 */
 	return type_flag(reg->type) & BPF_REG_TRUSTED_MODIFIERS &&
 	       !bpf_type_has_unsafe_modifiers(reg->type);
+}
+
+static bool is_rcu_reg(const struct bpf_reg_state *reg)
+{
+	return reg->type & MEM_RCU;
 }
 
 static int check_pkt_ptr_alignment(struct bpf_verifier_env *env,
@@ -4703,6 +4726,18 @@ static int check_ptr_to_btf_access(struct bpf_verifier_env *env,
 	u32 btf_id;
 	int ret;
 
+	if (!env->allow_ptr_leaks) {
+		verbose(env,
+			"'struct %s' access is allowed only to CAP_PERFMON and CAP_SYS_ADMIN\n",
+			tname);
+		return -EPERM;
+	}
+	if (!env->prog->gpl_compatible && btf_is_kernel(reg->btf)) {
+		verbose(env,
+			"Cannot access kernel 'struct %s' from non-GPL compatible program\n",
+			tname);
+		return -EINVAL;
+	}
 	if (off < 0) {
 		verbose(env,
 			"R%d is ptr_%s invalid negative access: off=%d\n",
@@ -4773,14 +4808,16 @@ static int check_ptr_to_btf_access(struct bpf_verifier_env *env,
 
 	if (flag & MEM_RCU) {
 		/* Mark value register as MEM_RCU only if it is protected by
-		 * bpf_rcu_read_lock() and the ptr reg is trusted. MEM_RCU
+		 * bpf_rcu_read_lock() and the ptr reg is rcu or trusted. MEM_RCU
 		 * itself can already indicate trustedness inside the rcu
-		 * read lock region. Also mark it as PTR_TRUSTED.
+		 * read lock region. Also mark rcu pointer as PTR_MAYBE_NULL since
+		 * it could be null in some cases.
 		 */
-		if (!env->cur_state->active_rcu_lock || !is_trusted_reg(reg))
+		if (!env->cur_state->active_rcu_lock ||
+		    !(is_trusted_reg(reg) || is_rcu_reg(reg)))
 			flag &= ~MEM_RCU;
 		else
-			flag |= PTR_TRUSTED;
+			flag |= PTR_MAYBE_NULL;
 	} else if (reg->type & MEM_RCU) {
 		/* ptr (reg) is marked as MEM_RCU, but the struct field is not tagged
 		 * with __rcu. Mark the flag as PTR_UNTRUSTED conservatively.
@@ -4823,9 +4860,9 @@ static int check_ptr_to_map_access(struct bpf_verifier_env *env,
 	t = btf_type_by_id(btf_vmlinux, *map->ops->map_btf_id);
 	tname = btf_name_by_offset(btf_vmlinux, t->name_off);
 
-	if (!env->allow_ptr_to_map_access) {
+	if (!env->allow_ptr_leaks) {
 		verbose(env,
-			"%s access is allowed only to CAP_PERFMON and CAP_SYS_ADMIN\n",
+			"'struct %s' access is allowed only to CAP_PERFMON and CAP_SYS_ADMIN\n",
 			tname);
 		return -EPERM;
 	}
@@ -5726,7 +5763,7 @@ static int process_spin_lock(struct bpf_verifier_env *env, int regno,
 		cur->active_lock.ptr = NULL;
 		cur->active_lock.id = 0;
 
-		for (i = 0; i < fstate->acquired_refs; i++) {
+		for (i = fstate->acquired_refs - 1; i >= 0; i--) {
 			int err;
 
 			/* Complain on error because this reference state cannot
@@ -5945,7 +5982,7 @@ static const struct bpf_reg_types btf_ptr_types = {
 	.types = {
 		PTR_TO_BTF_ID,
 		PTR_TO_BTF_ID | PTR_TRUSTED,
-		PTR_TO_BTF_ID | MEM_RCU | PTR_TRUSTED,
+		PTR_TO_BTF_ID | MEM_RCU,
 	},
 };
 static const struct bpf_reg_types percpu_btf_ptr_types = {
@@ -6124,7 +6161,7 @@ int check_func_arg_reg_off(struct bpf_verifier_env *env,
 	case PTR_TO_BTF_ID:
 	case PTR_TO_BTF_ID | MEM_ALLOC:
 	case PTR_TO_BTF_ID | PTR_TRUSTED:
-	case PTR_TO_BTF_ID | MEM_RCU | PTR_TRUSTED:
+	case PTR_TO_BTF_ID | MEM_RCU:
 	case PTR_TO_BTF_ID | MEM_ALLOC | PTR_TRUSTED:
 		/* When referenced PTR_TO_BTF_ID is passed to release function,
 		 * it's fixed offset must be 0.	In the other cases, fixed offset
@@ -8026,6 +8063,11 @@ static bool is_kfunc_destructive(struct bpf_kfunc_call_arg_meta *meta)
 	return meta->kfunc_flags & KF_DESTRUCTIVE;
 }
 
+static bool is_kfunc_rcu(struct bpf_kfunc_call_arg_meta *meta)
+{
+	return meta->kfunc_flags & KF_RCU;
+}
+
 static bool is_kfunc_arg_kptr_get(struct bpf_kfunc_call_arg_meta *meta, int arg)
 {
 	return arg == 0 && (meta->kfunc_flags & KF_KPTR_GET);
@@ -8710,13 +8752,20 @@ static int check_kfunc_args(struct bpf_verifier_env *env, struct bpf_kfunc_call_
 		switch (kf_arg_type) {
 		case KF_ARG_PTR_TO_ALLOC_BTF_ID:
 		case KF_ARG_PTR_TO_BTF_ID:
-			if (!is_kfunc_trusted_args(meta))
+			if (!is_kfunc_trusted_args(meta) && !is_kfunc_rcu(meta))
 				break;
 
 			if (!is_trusted_reg(reg)) {
-				verbose(env, "R%d must be referenced or trusted\n", regno);
-				return -EINVAL;
+				if (!is_kfunc_rcu(meta)) {
+					verbose(env, "R%d must be referenced or trusted\n", regno);
+					return -EINVAL;
+				}
+				if (!is_rcu_reg(reg)) {
+					verbose(env, "R%d must be a rcu pointer\n", regno);
+					return -EINVAL;
+				}
 			}
+
 			fallthrough;
 		case KF_ARG_PTR_TO_CTX:
 			/* Trusted arguments have the same offset checks as release arguments */
@@ -8827,7 +8876,7 @@ static int check_kfunc_args(struct bpf_verifier_env *env, struct bpf_kfunc_call_
 		case KF_ARG_PTR_TO_BTF_ID:
 			/* Only base_type is checked, further checks are done here */
 			if ((base_type(reg->type) != PTR_TO_BTF_ID ||
-			     bpf_type_has_unsafe_modifiers(reg->type)) &&
+			     (bpf_type_has_unsafe_modifiers(reg->type) && !is_rcu_reg(reg))) &&
 			    !reg2btf_ids[base_type(reg->type)]) {
 				verbose(env, "arg#%d is %s ", i, reg_type_str(env, reg->type));
 				verbose(env, "expected %s or socket\n",
@@ -8942,7 +8991,7 @@ static int check_kfunc_call(struct bpf_verifier_env *env, struct bpf_insn *insn,
 		} else if (rcu_unlock) {
 			bpf_for_each_reg_in_vstate(env->cur_state, state, reg, ({
 				if (reg->type & MEM_RCU) {
-					reg->type &= ~(MEM_RCU | PTR_TRUSTED);
+					reg->type &= ~(MEM_RCU | PTR_MAYBE_NULL);
 					reg->type |= PTR_UNTRUSTED;
 				}
 			}));
@@ -11282,7 +11331,7 @@ static void mark_ptr_or_null_reg(struct bpf_func_state *state,
 				 bool is_null)
 {
 	if (type_may_be_null(reg->type) && reg->id == id &&
-	    !WARN_ON_ONCE(!reg->id)) {
+	    (is_rcu_reg(reg) || !WARN_ON_ONCE(!reg->id))) {
 		/* Old offset (both fixed and variable parts) should have been
 		 * known-zero, because we don't allow pointer arithmetic on
 		 * pointers that might be NULL. If we see this happening, don't
@@ -12104,9 +12153,14 @@ static struct bpf_verifier_state_list **explored_state(
 	return &env->explored_states[(idx ^ state->callsite) % state_htab_size(env)];
 }
 
-static void init_explored_state(struct bpf_verifier_env *env, int idx)
+static void mark_prune_point(struct bpf_verifier_env *env, int idx)
 {
 	env->insn_aux_data[idx].prune_point = true;
+}
+
+static bool is_prune_point(struct bpf_verifier_env *env, int insn_idx)
+{
+	return env->insn_aux_data[insn_idx].prune_point;
 }
 
 enum {
@@ -12137,9 +12191,11 @@ static int push_insn(int t, int w, int e, struct bpf_verifier_env *env,
 		return -EINVAL;
 	}
 
-	if (e == BRANCH)
+	if (e == BRANCH) {
 		/* mark branch target for state pruning */
-		init_explored_state(env, w);
+		mark_prune_point(env, w);
+		mark_jmp_point(env, w);
+	}
 
 	if (insn_state[w] == 0) {
 		/* tree-edge */
@@ -12166,8 +12222,7 @@ static int push_insn(int t, int w, int e, struct bpf_verifier_env *env,
 	return DONE_EXPLORING;
 }
 
-static int visit_func_call_insn(int t, int insn_cnt,
-				struct bpf_insn *insns,
+static int visit_func_call_insn(int t, struct bpf_insn *insns,
 				struct bpf_verifier_env *env,
 				bool visit_callee)
 {
@@ -12177,10 +12232,12 @@ static int visit_func_call_insn(int t, int insn_cnt,
 	if (ret)
 		return ret;
 
-	if (t + 1 < insn_cnt)
-		init_explored_state(env, t + 1);
+	mark_prune_point(env, t + 1);
+	/* when we exit from subprog, we need to record non-linear history */
+	mark_jmp_point(env, t + 1);
+
 	if (visit_callee) {
-		init_explored_state(env, t);
+		mark_prune_point(env, t);
 		ret = push_insn(t, t + insns[t].imm + 1, BRANCH, env,
 				/* It's ok to allow recursion from CFG point of
 				 * view. __check_func_call() will do the actual
@@ -12196,13 +12253,13 @@ static int visit_func_call_insn(int t, int insn_cnt,
  *  DONE_EXPLORING - the instruction was fully explored
  *  KEEP_EXPLORING - there is still work to be done before it is fully explored
  */
-static int visit_insn(int t, int insn_cnt, struct bpf_verifier_env *env)
+static int visit_insn(int t, struct bpf_verifier_env *env)
 {
 	struct bpf_insn *insns = env->prog->insnsi;
 	int ret;
 
 	if (bpf_pseudo_func(insns + t))
-		return visit_func_call_insn(t, insn_cnt, insns, env, true);
+		return visit_func_call_insn(t, insns, env, true);
 
 	/* All non-branch instructions have a single fall-through edge. */
 	if (BPF_CLASS(insns[t].code) != BPF_JMP &&
@@ -12215,13 +12272,13 @@ static int visit_insn(int t, int insn_cnt, struct bpf_verifier_env *env)
 
 	case BPF_CALL:
 		if (insns[t].imm == BPF_FUNC_timer_set_callback)
-			/* Mark this call insn to trigger is_state_visited() check
-			 * before call itself is processed by __check_func_call().
-			 * Otherwise new async state will be pushed for further
-			 * exploration.
+			/* Mark this call insn as a prune point to trigger
+			 * is_state_visited() check before call itself is
+			 * processed by __check_func_call(). Otherwise new
+			 * async state will be pushed for further exploration.
 			 */
-			init_explored_state(env, t);
-		return visit_func_call_insn(t, insn_cnt, insns, env,
+			mark_prune_point(env, t);
+		return visit_func_call_insn(t, insns, env,
 					    insns[t].src_reg == BPF_PSEUDO_CALL);
 
 	case BPF_JA:
@@ -12234,22 +12291,15 @@ static int visit_insn(int t, int insn_cnt, struct bpf_verifier_env *env)
 		if (ret)
 			return ret;
 
-		/* unconditional jmp is not a good pruning point,
-		 * but it's marked, since backtracking needs
-		 * to record jmp history in is_state_visited().
-		 */
-		init_explored_state(env, t + insns[t].off + 1);
-		/* tell verifier to check for equivalent states
-		 * after every call and jump
-		 */
-		if (t + 1 < insn_cnt)
-			init_explored_state(env, t + 1);
+		mark_prune_point(env, t + insns[t].off + 1);
+		mark_jmp_point(env, t + insns[t].off + 1);
 
 		return ret;
 
 	default:
 		/* conditional jump with two edges */
-		init_explored_state(env, t);
+		mark_prune_point(env, t);
+
 		ret = push_insn(t, t + 1, FALLTHROUGH, env, true);
 		if (ret)
 			return ret;
@@ -12285,7 +12335,7 @@ static int check_cfg(struct bpf_verifier_env *env)
 	while (env->cfg.cur_stack > 0) {
 		int t = insn_stack[env->cfg.cur_stack - 1];
 
-		ret = visit_insn(t, insn_cnt, env);
+		ret = visit_insn(t, env);
 		switch (ret) {
 		case DONE_EXPLORING:
 			insn_state[t] = EXPLORED;
@@ -13283,13 +13333,6 @@ static int is_state_visited(struct bpf_verifier_env *env, int insn_idx)
 	int i, j, err, states_cnt = 0;
 	bool add_new_state = env->test_state_freq ? true : false;
 
-	cur->last_insn_idx = env->prev_insn_idx;
-	if (!env->insn_aux_data[insn_idx].prune_point)
-		/* this 'insn_idx' instruction wasn't marked, so we will not
-		 * be doing state search here
-		 */
-		return 0;
-
 	/* bpf progs typically have pruning point every 4 instructions
 	 * http://vger.kernel.org/bpfconf2019.html#session-1
 	 * Do not add new state for future pruning if the verifier hasn't seen
@@ -13424,10 +13467,10 @@ next:
 		env->max_states_per_insn = states_cnt;
 
 	if (!env->bpf_capable && states_cnt > BPF_COMPLEXITY_LIMIT_STATES)
-		return push_jmp_history(env, cur);
+		return 0;
 
 	if (!add_new_state)
-		return push_jmp_history(env, cur);
+		return 0;
 
 	/* There were no equivalent states, remember the current one.
 	 * Technically the current state is not proven to be safe yet,
@@ -13567,21 +13610,31 @@ static int do_check(struct bpf_verifier_env *env)
 			return -E2BIG;
 		}
 
-		err = is_state_visited(env, env->insn_idx);
-		if (err < 0)
-			return err;
-		if (err == 1) {
-			/* found equivalent state, can prune the search */
-			if (env->log.level & BPF_LOG_LEVEL) {
-				if (do_print_state)
-					verbose(env, "\nfrom %d to %d%s: safe\n",
-						env->prev_insn_idx, env->insn_idx,
-						env->cur_state->speculative ?
-						" (speculative execution)" : "");
-				else
-					verbose(env, "%d: safe\n", env->insn_idx);
+		state->last_insn_idx = env->prev_insn_idx;
+
+		if (is_prune_point(env, env->insn_idx)) {
+			err = is_state_visited(env, env->insn_idx);
+			if (err < 0)
+				return err;
+			if (err == 1) {
+				/* found equivalent state, can prune the search */
+				if (env->log.level & BPF_LOG_LEVEL) {
+					if (do_print_state)
+						verbose(env, "\nfrom %d to %d%s: safe\n",
+							env->prev_insn_idx, env->insn_idx,
+							env->cur_state->speculative ?
+							" (speculative execution)" : "");
+					else
+						verbose(env, "%d: safe\n", env->insn_idx);
+				}
+				goto process_bpf_exit;
 			}
-			goto process_bpf_exit;
+		}
+
+		if (is_jmp_point(env, env->insn_idx)) {
+			err = push_jmp_history(env, state);
+			if (err)
+				return err;
 		}
 
 		if (signal_pending(current))
@@ -14123,10 +14176,11 @@ static int check_map_prog_compatibility(struct bpf_verifier_env *env,
 		case BPF_MAP_TYPE_INODE_STORAGE:
 		case BPF_MAP_TYPE_SK_STORAGE:
 		case BPF_MAP_TYPE_TASK_STORAGE:
+		case BPF_MAP_TYPE_CGRP_STORAGE:
 			break;
 		default:
 			verbose(env,
-				"Sleepable programs can only use array, hash, and ringbuf maps\n");
+				"Sleepable programs can only use array, hash, ringbuf and local storage maps\n");
 			return -EINVAL;
 		}
 
@@ -16692,7 +16746,6 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr, bpfptr_t uattr)
 
 	env->allow_ptr_leaks = bpf_allow_ptr_leaks();
 	env->allow_uninit_stack = bpf_allow_uninit_stack();
-	env->allow_ptr_to_map_access = bpf_allow_ptr_to_map_access();
 	env->bypass_spec_v1 = bpf_bypass_spec_v1();
 	env->bypass_spec_v4 = bpf_bypass_spec_v4();
 	env->bpf_capable = bpf_capable();
