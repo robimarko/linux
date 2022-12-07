@@ -290,8 +290,7 @@ static int __maybe_unused ad5820_resume(struct device *dev)
 	return ad5820_power_on(coil, true);
 }
 
-static int ad5820_probe(struct i2c_client *client,
-			const struct i2c_device_id *devid)
+static int ad5820_probe(struct i2c_client *client)
 {
 	struct ad5820_device *coil;
 	int ret;
@@ -327,18 +326,18 @@ static int ad5820_probe(struct i2c_client *client,
 
 	ret = media_entity_pads_init(&coil->subdev.entity, 0, NULL);
 	if (ret < 0)
-		goto cleanup2;
+		goto clean_mutex;
 
 	ret = v4l2_async_register_subdev(&coil->subdev);
 	if (ret < 0)
-		goto cleanup;
+		goto clean_entity;
 
 	return ret;
 
-cleanup2:
-	mutex_destroy(&coil->power_lock);
-cleanup:
+clean_entity:
 	media_entity_cleanup(&coil->subdev.entity);
+clean_mutex:
+	mutex_destroy(&coil->power_lock);
 	return ret;
 }
 
@@ -377,7 +376,7 @@ static struct i2c_driver ad5820_i2c_driver = {
 		.pm	= &ad5820_pm,
 		.of_match_table = ad5820_of_table,
 	},
-	.probe		= ad5820_probe,
+	.probe_new	= ad5820_probe,
 	.remove		= ad5820_remove,
 	.id_table	= ad5820_id_table,
 };
