@@ -606,6 +606,7 @@ enum {
 	SDF_REMOTE_WITHDRAW	= 13, /* Performing remote recovery */
 	SDF_WITHDRAW_RECOVERY	= 14, /* Wait for journal recovery when we are
 					 withdrawing */
+	SDF_GOING_READONLY	= 15,
 };
 
 enum gfs2_freeze_state {
@@ -771,6 +772,10 @@ struct gfs2_sbd {
 	struct gfs2_holder sd_qc_gh;
 
 	struct completion sd_journal_ready;
+
+	/* Workqueue stuff */
+
+	struct workqueue_struct *sd_delete_wq;
 
 	/* Daemon stuff */
 
