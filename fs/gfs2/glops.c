@@ -657,11 +657,6 @@ static void iopen_go_callback(struct gfs2_glock *gl, bool remote)
 	}
 }
 
-static int iopen_go_demote_ok(const struct gfs2_glock *gl)
-{
-       return !gfs2_delete_work_queued(gl);
-}
-
 /**
  * inode_go_free - wake up anyone waiting for dlm's unlock ast to free it
  * @gl: glock being freed
@@ -767,7 +762,6 @@ const struct gfs2_glock_operations gfs2_iopen_glops = {
 	.go_type = LM_TYPE_IOPEN,
 	.go_callback = iopen_go_callback,
 	.go_dump = inode_go_dump,
-	.go_demote_ok = iopen_go_demote_ok,
 	.go_flags = GLOF_LRU | GLOF_NONDISK,
 	.go_subclass = 1,
 };
