@@ -224,6 +224,7 @@ struct gfs2_glock_operations {
 	void (*go_dump)(struct seq_file *seq, struct gfs2_glock *gl,
 			const char *fs_id_buf);
 	void (*go_callback)(struct gfs2_glock *gl, bool remote);
+	void (*go_aux_work)(struct gfs2_glock *gl);
 	void (*go_free)(struct gfs2_glock *gl);
 	const int go_subclass;
 	const int go_type;
@@ -330,6 +331,7 @@ enum {
 	GLF_OBJECT			= 14, /* Used only for tracing */
 	GLF_BLOCKING			= 15,
 	GLF_FREEING			= 16, /* Wait for glock to be freed */
+	GLF_AUX_WORK_QUEUED		= 17,
 };
 
 struct gfs2_glock {

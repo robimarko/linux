@@ -1029,6 +1029,9 @@ static void glock_work_func(struct work_struct *work)
 	struct gfs2_glock *gl = container_of(work, struct gfs2_glock, gl_work.work);
 	unsigned int drop_refs = 1;
 
+	if (test_and_clear_bit(GLF_AUX_WORK_QUEUED, &gl->gl_flags))
+		gl->gl_ops->go_aux_work(gl);
+
 	if (test_and_clear_bit(GLF_REPLY_PENDING, &gl->gl_flags)) {
 		finish_xmote(gl, gl->gl_reply);
 		drop_refs++;
@@ -2056,6 +2059,24 @@ static void glock_hash_walk(glock_examiner examiner, const struct gfs2_sbd *sdp)
 	} while (cond_resched(), gl == ERR_PTR(-EAGAIN));
 
 	rhashtable_walk_exit(&iter);
+}
+
+/**
+ * glock_queue_aux_work - queue execution of auxiliary work
+ * @gl: the glock
+ *
+ * Queue the immediate execution of auxiliary work through the ->go_aux_work()
+ * callback in work queue context.
+ */
+bool glock_queue_aux_work(struct gfs2_glock *gl)
+{
+	if (test_and_set_bit(GLF_AUX_WORK_QUEUED, &gl->gl_flags))
+		return false;
+	spin_lock(&gl->gl_lockref.lock);
+	gl->gl_lockref.count++;
+	__gfs2_glock_queue_work(gl, 0);
+	spin_unlock(&gl->gl_lockref.lock);
+	return true;
 }
 
 bool gfs2_queue_delete_work(struct gfs2_glock *gl, unsigned long delay)
