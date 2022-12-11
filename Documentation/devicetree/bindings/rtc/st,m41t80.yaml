@@ -40,6 +40,7 @@ properties:
   clock:
     type: object
     $ref: /schemas/clock/fixed-clock.yaml#
+    deprecated: true
     properties:
       clock-frequency:
         const: 32768
