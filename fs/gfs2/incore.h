@@ -224,6 +224,7 @@ struct gfs2_glock_operations {
 	void (*go_dump)(struct seq_file *seq, struct gfs2_glock *gl,
 			const char *fs_id_buf);
 	void (*go_callback)(struct gfs2_glock *gl, bool remote);
+	void (*go_aux_work)(struct gfs2_glock *gl);
 	void (*go_free)(struct gfs2_glock *gl);
 	const int go_subclass;
 	const int go_type;
@@ -252,7 +253,6 @@ struct gfs2_lkstats {
 
 enum {
 	/* States */
-	HIF_MAY_DEMOTE		= 1,
 	HIF_HOLDER		= 6,  /* Set for gh that "holds" the glock */
 	HIF_WAIT		= 10,
 };
@@ -330,8 +330,8 @@ enum {
 	GLF_LRU				= 13,
 	GLF_OBJECT			= 14, /* Used only for tracing */
 	GLF_BLOCKING			= 15,
-	GLF_PENDING_DELETE		= 17,
-	GLF_FREEING			= 18, /* Wait for glock to be freed */
+	GLF_FREEING			= 16, /* Wait for glock to be freed */
+	GLF_AUX_WORK_QUEUED		= 17,
 };
 
 struct gfs2_glock {
@@ -606,6 +606,7 @@ enum {
 	SDF_REMOTE_WITHDRAW	= 13, /* Performing remote recovery */
 	SDF_WITHDRAW_RECOVERY	= 14, /* Wait for journal recovery when we are
 					 withdrawing */
+	SDF_READONLY		= 15,
 };
 
 enum gfs2_freeze_state {
@@ -771,6 +772,10 @@ struct gfs2_sbd {
 	struct gfs2_holder sd_qc_gh;
 
 	struct completion sd_journal_ready;
+
+	/* Workqueue stuff */
+
+	struct workqueue_struct *sd_delete_wq;
 
 	/* Daemon stuff */
 

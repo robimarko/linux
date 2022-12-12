@@ -397,38 +397,39 @@ static int gfs2_dinode_in(struct gfs2_inode *ip, const void *buf)
 	struct timespec64 atime;
 	u16 height, depth;
 	umode_t mode = be32_to_cpu(str->di_mode);
-	bool is_new = ip->i_inode.i_state & I_NEW;
+	struct inode *inode = &ip->i_inode;
+	bool is_new = inode->i_state & I_NEW;
 
 	if (unlikely(ip->i_no_addr != be64_to_cpu(str->di_num.no_addr)))
 		goto corrupt;
-	if (unlikely(!is_new && inode_wrong_type(&ip->i_inode, mode)))
+	if (unlikely(!is_new && inode_wrong_type(inode, mode)))
 		goto corrupt;
 	ip->i_no_formal_ino = be64_to_cpu(str->di_num.no_formal_ino);
-	ip->i_inode.i_mode = mode;
+	inode->i_mode = mode;
 	if (is_new) {
-		ip->i_inode.i_rdev = 0;
+		inode->i_rdev = 0;
 		switch (mode & S_IFMT) {
 		case S_IFBLK:
 		case S_IFCHR:
-			ip->i_inode.i_rdev = MKDEV(be32_to_cpu(str->di_major),
-						   be32_to_cpu(str->di_minor));
+			inode->i_rdev = MKDEV(be32_to_cpu(str->di_major),
+					      be32_to_cpu(str->di_minor));
 			break;
 		}
 	}
 
-	i_uid_write(&ip->i_inode, be32_to_cpu(str->di_uid));
-	i_gid_write(&ip->i_inode, be32_to_cpu(str->di_gid));
-	set_nlink(&ip->i_inode, be32_to_cpu(str->di_nlink));
-	i_size_write(&ip->i_inode, be64_to_cpu(str->di_size));
-	gfs2_set_inode_blocks(&ip->i_inode, be64_to_cpu(str->di_blocks));
+	i_uid_write(inode, be32_to_cpu(str->di_uid));
+	i_gid_write(inode, be32_to_cpu(str->di_gid));
+	set_nlink(inode, be32_to_cpu(str->di_nlink));
+	i_size_write(inode, be64_to_cpu(str->di_size));
+	gfs2_set_inode_blocks(inode, be64_to_cpu(str->di_blocks));
 	atime.tv_sec = be64_to_cpu(str->di_atime);
 	atime.tv_nsec = be32_to_cpu(str->di_atime_nsec);
-	if (timespec64_compare(&ip->i_inode.i_atime, &atime) < 0)
-		ip->i_inode.i_atime = atime;
-	ip->i_inode.i_mtime.tv_sec = be64_to_cpu(str->di_mtime);
-	ip->i_inode.i_mtime.tv_nsec = be32_to_cpu(str->di_mtime_nsec);
-	ip->i_inode.i_ctime.tv_sec = be64_to_cpu(str->di_ctime);
-	ip->i_inode.i_ctime.tv_nsec = be32_to_cpu(str->di_ctime_nsec);
+	if (timespec64_compare(&inode->i_atime, &atime) < 0)
+		inode->i_atime = atime;
+	inode->i_mtime.tv_sec = be64_to_cpu(str->di_mtime);
+	inode->i_mtime.tv_nsec = be32_to_cpu(str->di_mtime_nsec);
+	inode->i_ctime.tv_sec = be64_to_cpu(str->di_ctime);
+	inode->i_ctime.tv_nsec = be32_to_cpu(str->di_ctime_nsec);
 
 	ip->i_goal = be64_to_cpu(str->di_goal_meta);
 	ip->i_generation = be64_to_cpu(str->di_generation);
@@ -436,7 +437,7 @@ static int gfs2_dinode_in(struct gfs2_inode *ip, const void *buf)
 	ip->i_diskflags = be32_to_cpu(str->di_flags);
 	ip->i_eattr = be64_to_cpu(str->di_eattr);
 	/* i_diskflags and i_eattr must be set before gfs2_set_inode_flags() */
-	gfs2_set_inode_flags(&ip->i_inode);
+	gfs2_set_inode_flags(inode);
 	height = be16_to_cpu(str->di_height);
 	if (unlikely(height > GFS2_MAX_META_HEIGHT))
 		goto corrupt;
@@ -448,8 +449,11 @@ static int gfs2_dinode_in(struct gfs2_inode *ip, const void *buf)
 	ip->i_depth = (u8)depth;
 	ip->i_entries = be32_to_cpu(str->di_entries);
 
-	if (S_ISREG(ip->i_inode.i_mode))
-		gfs2_set_aops(&ip->i_inode);
+	if (gfs2_is_stuffed(ip) && inode->i_size > gfs2_max_stuffed_size(ip))
+		goto corrupt;
+
+	if (S_ISREG(inode->i_mode))
+		gfs2_set_aops(inode);
 
 	return 0;
 corrupt:
@@ -639,23 +643,102 @@ static int freeze_go_demote_ok(const struct gfs2_glock *gl)
 static void iopen_go_callback(struct gfs2_glock *gl, bool remote)
 {
 	struct gfs2_inode *ip = gl->gl_object;
-	struct gfs2_sbd *sdp = gl->gl_name.ln_sbd;
 
-	if (!remote || sb_rdonly(sdp->sd_vfs))
+	if (!remote)
 		return;
 
 	if (gl->gl_demote_state == LM_ST_UNLOCKED &&
-	    gl->gl_state == LM_ST_SHARED && ip) {
-		gl->gl_lockref.count++;
-		if (!queue_delayed_work(gfs2_delete_workqueue,
-					&gl->gl_delete, 0))
-			gl->gl_lockref.count--;
-	}
+	    gl->gl_state == LM_ST_SHARED && ip)
+		glock_queue_aux_work(gl);
 }
 
-static int iopen_go_demote_ok(const struct gfs2_glock *gl)
+static void gfs2_glock_poke(struct gfs2_glock *gl)
 {
-       return !gfs2_delete_work_queued(gl);
+	int flags = LM_FLAG_TRY_1CB | LM_FLAG_ANY | GL_SKIP;
+	struct gfs2_holder gh;
+	int error;
+
+	__gfs2_holder_init(gl, LM_ST_SHARED, flags, &gh, _RET_IP_);
+	error = gfs2_glock_nq(&gh);
+	if (!error)
+		gfs2_glock_dq(&gh);
+	gfs2_holder_uninit(&gh);
+}
+
+static bool gfs2_try_evict(struct gfs2_glock *gl)
+{
+	struct gfs2_inode *ip;
+	bool evicted = false;
+
+	/*
+	 * If there is contention on the iopen glock and we have an inode, try
+	 * to grab and release the inode so that it can be evicted.  This will
+	 * allow the remote node to go ahead and delete the inode without us
+	 * having to do it, which will avoid rgrp glock thrashing.
+	 *
+	 * The remote node is likely still holding the corresponding inode
+	 * glock, so it will run before we get to verify that the delete has
+	 * happened below.
+	 */
+	spin_lock(&gl->gl_lockref.lock);
+	ip = gl->gl_object;
+	if (ip && !igrab(&ip->i_inode))
+		ip = NULL;
+	spin_unlock(&gl->gl_lockref.lock);
+	if (ip) {
+		gl->gl_no_formal_ino = ip->i_no_formal_ino;
+		set_bit(GIF_DEFERRED_DELETE, &ip->i_flags);
+		d_prune_aliases(&ip->i_inode);
+		iput(&ip->i_inode);
+
+		/* If the inode was evicted, gl->gl_object will now be NULL. */
+		spin_lock(&gl->gl_lockref.lock);
+		ip = gl->gl_object;
+		if (ip) {
+			clear_bit(GIF_DEFERRED_DELETE, &ip->i_flags);
+			if (!igrab(&ip->i_inode))
+				ip = NULL;
+		}
+		spin_unlock(&gl->gl_lockref.lock);
+		if (ip) {
+			gfs2_glock_poke(ip->i_gl);
+			iput(&ip->i_inode);
+		}
+		evicted = !ip;
+	}
+	return evicted;
+}
+
+static void iopen_go_aux_work(struct gfs2_glock *gl)
+{
+	/*
+	 * If we can evict the inode, give the remote node trying to
+	 * delete the inode some time before verifying that the delete
+	 * has happened.  Otherwise, if we cause contention on the inode glock
+	 * immediately, the remote node will think that we still have
+	 * the inode in use, and so it will give up waiting.
+	 *
+	 * If we can't evict the inode, signal to the remote node that
+	 * the inode is still in use.  We'll later try to delete the
+	 * inode locally in gfs2_evict_inode.
+	 *
+	 * FIXME: We only need to verify that the remote node has
+	 * deleted the inode because nodes before this remote delete
+	 * rework won't cooperate.  At a later time, when we no longer
+	 * care about compatibility with such nodes, we can skip this
+	 * step entirely.
+	 */
+	if (gfs2_try_evict(gl)) {
+		struct gfs2_sbd *sdp = gl->gl_name.ln_sbd;
+		bool requeue = !test_bit(SDF_READONLY, &sdp->sd_flags);
+
+		if (!requeue)
+			return;
+		gfs2_glock_hold(gl);
+		if (gfs2_queue_delete_work(gl, 5 * HZ))
+			return;
+		gfs2_glock_put(gl);
+	}
 }
 
 /**
@@ -763,7 +846,7 @@ const struct gfs2_glock_operations gfs2_iopen_glops = {
 	.go_type = LM_TYPE_IOPEN,
 	.go_callback = iopen_go_callback,
 	.go_dump = inode_go_dump,
-	.go_demote_ok = iopen_go_demote_ok,
+	.go_aux_work = iopen_go_aux_work,
 	.go_flags = GLOF_LRU | GLOF_NONDISK,
 	.go_subclass = 1,
 };
