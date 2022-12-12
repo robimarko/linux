@@ -27,17 +27,19 @@
 static unsigned long efi_nr_tables;
 static unsigned long efi_config_table;
 
-static unsigned long __initdata boot_memmap = EFI_INVALID_TABLE_ADDR;
+static unsigned long boot_memmap __initdata = EFI_INVALID_TABLE_ADDR;
+static unsigned long fdt_pointer __initdata = EFI_INVALID_TABLE_ADDR;
 
 static efi_system_table_t *efi_systab;
 static efi_config_table_type_t arch_tables[] __initdata = {
 	{LINUX_EFI_BOOT_MEMMAP_GUID,	&boot_memmap,	"MEMMAP" },
+	{DEVICE_TREE_GUID,		&fdt_pointer,	"FDTPTR" },
 	{},
 };
 
 void __init efi_runtime_init(void)
 {
-	if (!efi_enabled(EFI_BOOT))
+	if (!efi_enabled(EFI_BOOT) || !efi_systab->runtime)
 		return;
 
 	if (efi_runtime_disabled()) {
@@ -50,6 +52,17 @@ void __init efi_runtime_init(void)
 
 	efi_native_runtime_setup();
 	set_bit(EFI_RUNTIME_SERVICES, &efi.flags);
+}
+
+void __init *efi_fdt_pointer(void)
+{
+	if (!efi_systab)
+		return NULL;
+
+	if (fdt_pointer == EFI_INVALID_TABLE_ADDR)
+		return NULL;
+
+	return early_memremap_ro(fdt_pointer, SZ_64K);
 }
 
 void __init efi_init(void)
