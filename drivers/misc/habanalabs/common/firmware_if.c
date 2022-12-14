@@ -14,7 +14,31 @@
 #include <linux/ctype.h>
 #include <linux/vmalloc.h>
 
+#include <trace/events/habanalabs.h>
+
 #define FW_FILE_MAX_SIZE		0x1400000 /* maximum size of 20MB */
+
+static char *comms_cmd_str_arr[COMMS_INVLD_LAST] = {
+	[COMMS_NOOP] = __stringify(COMMS_NOOP),
+	[COMMS_CLR_STS] = __stringify(COMMS_CLR_STS),
+	[COMMS_RST_STATE] = __stringify(COMMS_RST_STATE),
+	[COMMS_PREP_DESC] = __stringify(COMMS_PREP_DESC),
+	[COMMS_DATA_RDY] = __stringify(COMMS_DATA_RDY),
+	[COMMS_EXEC] = __stringify(COMMS_EXEC),
+	[COMMS_RST_DEV] = __stringify(COMMS_RST_DEV),
+	[COMMS_GOTO_WFE] = __stringify(COMMS_GOTO_WFE),
+	[COMMS_SKIP_BMC] = __stringify(COMMS_SKIP_BMC),
+	[COMMS_PREP_DESC_ELBI] = __stringify(COMMS_PREP_DESC_ELBI),
+};
+
+static char *comms_sts_str_arr[COMMS_STS_INVLD_LAST] = {
+	[COMMS_STS_NOOP] = __stringify(COMMS_STS_NOOP),
+	[COMMS_STS_ACK] = __stringify(COMMS_STS_ACK),
+	[COMMS_STS_OK] = __stringify(COMMS_STS_OK),
+	[COMMS_STS_ERR] = __stringify(COMMS_STS_ERR),
+	[COMMS_STS_VALID_ERR] = __stringify(COMMS_STS_VALID_ERR),
+	[COMMS_STS_TIMEOUT_ERR] = __stringify(COMMS_STS_TIMEOUT_ERR),
+};
 
 static char *extract_fw_ver_from_str(const char *fw_str)
 {
@@ -1328,7 +1352,7 @@ static void detect_cpu_boot_status(struct hl_device *hdev, u32 status)
 	}
 }
 
-static int hl_fw_wait_preboot_ready(struct hl_device *hdev)
+int hl_fw_wait_preboot_ready(struct hl_device *hdev)
 {
 	struct pre_fw_load_props *pre_fw_load = &hdev->fw_loader.pre_fw_load;
 	u32 status;
@@ -1634,6 +1658,7 @@ static void hl_fw_dynamic_send_cmd(struct hl_device *hdev,
 	val = FIELD_PREP(COMMS_COMMAND_CMD_MASK, cmd);
 	val |= FIELD_PREP(COMMS_COMMAND_SIZE_MASK, size);
 
+	trace_habanalabs_comms_send_cmd(hdev->dev, comms_cmd_str_arr[cmd]);
 	WREG32(le32_to_cpu(dyn_regs->kmd_msg_to_cpu), val);
 }
 
@@ -1691,6 +1716,8 @@ static int hl_fw_dynamic_wait_for_status(struct hl_device *hdev,
 
 	dyn_regs = &fw_loader->dynamic_loader.comm_desc.cpu_dyn_regs;
 
+	trace_habanalabs_comms_wait_status(hdev->dev, comms_sts_str_arr[expected_status]);
+
 	/* Wait for expected status */
 	rc = hl_poll_timeout(
 		hdev,
@@ -1705,6 +1732,8 @@ static int hl_fw_dynamic_wait_for_status(struct hl_device *hdev,
 							expected_status);
 		return -EIO;
 	}
+
+	trace_habanalabs_comms_wait_status_done(hdev->dev, comms_sts_str_arr[expected_status]);
 
 	/*
 	 * skip storing FW response for NOOP to preserve the actual desired
@@ -1777,6 +1806,8 @@ int hl_fw_dynamic_send_protocol_cmd(struct hl_device *hdev,
 				bool wait_ok, u32 timeout)
 {
 	int rc;
+
+	trace_habanalabs_comms_protocol_cmd(hdev->dev, comms_cmd_str_arr[cmd]);
 
 	/* first send clear command to clean former commands */
 	rc = hl_fw_dynamic_send_clear_cmd(hdev, fw_loader);
@@ -1901,11 +1932,11 @@ static int hl_fw_dynamic_validate_descriptor(struct hl_device *hdev,
 	int rc;
 
 	if (le32_to_cpu(fw_desc->header.magic) != HL_COMMS_DESC_MAGIC)
-		dev_warn(hdev->dev, "Invalid magic for dynamic FW descriptor (%x)\n",
+		dev_dbg(hdev->dev, "Invalid magic for dynamic FW descriptor (%x)\n",
 				fw_desc->header.magic);
 
 	if (fw_desc->header.version != HL_COMMS_DESC_VER)
-		dev_warn(hdev->dev, "Invalid version for dynamic FW descriptor (%x)\n",
+		dev_dbg(hdev->dev, "Invalid version for dynamic FW descriptor (%x)\n",
 				fw_desc->header.version);
 
 	/*
@@ -1988,9 +2019,10 @@ static int hl_fw_dynamic_read_and_validate_descriptor(struct hl_device *hdev,
 						struct fw_load_mgr *fw_loader)
 {
 	struct lkd_fw_comms_desc *fw_desc;
-	void __iomem *src, *temp_fw_desc;
 	struct pci_mem_region *region;
 	struct fw_response *response;
+	void *temp_fw_desc;
+	void __iomem *src;
 	u16 fw_data_size;
 	enum pci_region region_id;
 	int rc;
@@ -2560,13 +2592,39 @@ static int hl_fw_dynamic_init_cpu(struct hl_device *hdev,
 	}
 
 	if (!(hdev->fw_components & FW_TYPE_BOOT_CPU)) {
+		struct lkd_fw_binning_info *binning_info;
+
 		rc = hl_fw_dynamic_request_descriptor(hdev, fw_loader, 0);
 		if (rc)
 			goto protocol_err;
 
 		/* read preboot version */
-		return hl_fw_dynamic_read_device_fw_version(hdev, FW_COMP_PREBOOT,
+		rc = hl_fw_dynamic_read_device_fw_version(hdev, FW_COMP_PREBOOT,
 				fw_loader->dynamic_loader.comm_desc.cur_fw_ver);
+
+		if (rc)
+			goto out;
+
+		/* read binning info from preboot */
+		if (hdev->support_preboot_binning) {
+			binning_info = &fw_loader->dynamic_loader.comm_desc.binning_info;
+			hdev->tpc_binning = le64_to_cpu(binning_info->tpc_mask_l);
+			hdev->dram_binning = le32_to_cpu(binning_info->dram_mask);
+			hdev->edma_binning = le32_to_cpu(binning_info->edma_mask);
+			hdev->decoder_binning = le32_to_cpu(binning_info->dec_mask);
+			hdev->rotator_binning = le32_to_cpu(binning_info->rot_mask);
+
+			rc = hdev->asic_funcs->set_dram_properties(hdev);
+			if (rc)
+				goto out;
+
+			dev_dbg(hdev->dev,
+				"Read binning masks: tpc: 0x%llx, dram: 0x%llx, edma: 0x%x, dec: 0x%x, rot:0x%x\n",
+				hdev->tpc_binning, hdev->dram_binning, hdev->edma_binning,
+				hdev->decoder_binning, hdev->rotator_binning);
+		}
+out:
+		return rc;
 	}
 
 	/* load boot fit to FW */
