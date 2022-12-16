@@ -32,7 +32,7 @@ module_param_named(frame_mode, ath11k_frame_mode, uint, 0644);
 MODULE_PARM_DESC(frame_mode,
 		 "Datapath frame mode (0: raw, 1: native wifi (default), 2: ethernet)");
 
-static const struct ath11k_hw_params ath11k_hw_params[] = {
+static struct ath11k_hw_params ath11k_hw_params[] = {
 	{
 		.hw_rev = ATH11K_HW_IPQ8074,
 		.name = "ipq8074 hw2.0",
@@ -1911,7 +1911,8 @@ static void ath11k_core_reset(struct work_struct *work)
 static int ath11k_init_hw_params(struct ath11k_base *ab)
 {
 	const struct ath11k_hw_params *hw_params = NULL;
-	int i;
+	u32 fw_mem_mode;
+	int i, ret;
 
 	for (i = 0; i < ARRAY_SIZE(ath11k_hw_params); i++) {
 		hw_params = &ath11k_hw_params[i];
@@ -1927,7 +1928,30 @@ static int ath11k_init_hw_params(struct ath11k_base *ab)
 
 	ab->hw_params = *hw_params;
 
+	ret = of_property_read_u32(ab->dev->of_node,
+				   "qcom,ath11k-fw-memory-mode",
+				   &fw_mem_mode);
+	if (!ret) {
+		if (fw_mem_mode == 0) {
+			ab->hw_params.fw_mem_mode = 0;
+			ab->hw_params.num_vdevs = 16 + 1;
+			ab->hw_params.num_peers = 512;
+		}
+		else if (fw_mem_mode == 1) {
+			ab->hw_params.fw_mem_mode = 1;
+			ab->hw_params.num_vdevs = 8;
+			ab->hw_params.num_peers = 128;
+		} else if (fw_mem_mode == 2) {
+			ab->hw_params.fw_mem_mode = 2;
+			ab->hw_params.num_vdevs = 8;
+			ab->hw_params.num_peers = 128;
+			ab->hw_params.cold_boot_calib = false;
+		} else
+			ath11k_info(ab, "Unsupported FW memory mode: %u\n", fw_mem_mode);
+	}
+
 	ath11k_info(ab, "%s\n", ab->hw_params.name);
+	ath11k_info(ab, "FW memory mode: %d\n", ab->hw_params.fw_mem_mode);
 
 	return 0;
 }
