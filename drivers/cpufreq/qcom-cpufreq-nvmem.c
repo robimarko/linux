@@ -28,8 +28,7 @@
 #include <linux/pm_opp.h>
 #include <linux/slab.h>
 #include <linux/soc/qcom/smem.h>
-
-#define MSM_ID_SMEM	137
+#include <linux/soc/qcom/socinfo.h>
 
 enum _msm_id {
 	MSM8996V3 = 0xF6ul,
@@ -143,17 +142,14 @@ static void get_krait_bin_format_b(struct device *cpu_dev,
 static enum _msm8996_version qcom_cpufreq_get_msm_id(void)
 {
 	size_t len;
-	u32 *msm_id;
+	struct socinfo *info;
 	enum _msm8996_version version;
 
-	msm_id = qcom_smem_get(QCOM_SMEM_HOST_ANY, MSM_ID_SMEM, &len);
-	if (IS_ERR(msm_id))
+	info = qcom_smem_get(QCOM_SMEM_HOST_ANY, SMEM_HW_SW_BUILD_ID, &len);
+	if (IS_ERR(info))
 		return NUM_OF_MSM8996_VERSIONS;
 
-	/* The first 4 bytes are format, next to them is the actual msm-id */
-	msm_id++;
-
-	switch ((enum _msm_id)*msm_id) {
+	switch (info->id) {
 	case MSM8996V3:
 	case APQ8096V3:
 		version = MSM8996_V3;
