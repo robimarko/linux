@@ -2366,7 +2366,10 @@ cifs_put_tcon(struct cifs_tcon *tcon)
 	spin_unlock(&cifs_tcp_ses_lock);
 
 	/* cancel polling of interfaces */
-	cancel_delayed_work_sync(&tcon->query_interfaces);
+	if (tcon->iface_query_poll) {
+		tcon->iface_query_poll = false;
+		cancel_delayed_work_sync(&tcon->query_interfaces);
+	}
 
 	if (tcon->use_witness) {
 		int rc;
@@ -2606,11 +2609,14 @@ cifs_get_tcon(struct cifs_ses *ses, struct smb3_fs_context *ctx)
 	INIT_LIST_HEAD(&tcon->pending_opens);
 	tcon->status = TID_GOOD;
 
-	/* schedule query interfaces poll */
-	INIT_DELAYED_WORK(&tcon->query_interfaces,
-			  smb2_query_server_interfaces);
-	queue_delayed_work(cifsiod_wq, &tcon->query_interfaces,
-			   (SMB_INTERFACE_POLL_INTERVAL * HZ));
+	if (!is_smb1_server(ses->server)) {
+		/* schedule query interfaces poll */
+		tcon->iface_query_poll = true;
+		INIT_DELAYED_WORK(&tcon->query_interfaces,
+				  smb2_query_server_interfaces);
+		queue_delayed_work(cifsiod_wq, &tcon->query_interfaces,
+				   (SMB_INTERFACE_POLL_INTERVAL * HZ));
+	}
 
 	spin_lock(&cifs_tcp_ses_lock);
 	list_add(&tcon->tcon_list, &ses->tcon_list);
