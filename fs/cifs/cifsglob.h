@@ -1240,6 +1240,7 @@ struct cifs_tcon {
 #ifdef CONFIG_CIFS_DFS_UPCALL
 	struct list_head ulist; /* cache update list */
 #endif
+	bool			iface_query_poll:1;
 	struct delayed_work	query_interfaces; /* query interfaces workqueue job */
 };
 
