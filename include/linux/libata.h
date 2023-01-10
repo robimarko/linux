@@ -91,22 +91,21 @@ enum {
 	ATA_DFLAG_AN		= (1 << 7), /* AN configured */
 	ATA_DFLAG_TRUSTED	= (1 << 8), /* device supports trusted send/recv */
 	ATA_DFLAG_DMADIR	= (1 << 10), /* device requires DMADIR */
-	ATA_DFLAG_CFG_MASK	= (1 << 12) - 1,
+	ATA_DFLAG_NCQ_SEND_RECV = (1 << 11), /* device supports NCQ SEND and RECV */
+	ATA_DFLAG_NCQ_PRIO	= (1 << 12), /* device supports NCQ priority */
+	ATA_DFLAG_CFG_MASK	= (1 << 13) - 1,
 
-	ATA_DFLAG_PIO		= (1 << 12), /* device limited to PIO mode */
-	ATA_DFLAG_NCQ_OFF	= (1 << 13), /* device limited to non-NCQ mode */
+	ATA_DFLAG_PIO		= (1 << 13), /* device limited to PIO mode */
+	ATA_DFLAG_NCQ_OFF	= (1 << 14), /* device limited to non-NCQ mode */
 	ATA_DFLAG_SLEEPING	= (1 << 15), /* device is sleeping */
 	ATA_DFLAG_DUBIOUS_XFER	= (1 << 16), /* data transfer not verified */
 	ATA_DFLAG_NO_UNLOAD	= (1 << 17), /* device doesn't support unload */
 	ATA_DFLAG_UNLOCK_HPA	= (1 << 18), /* unlock HPA */
-	ATA_DFLAG_NCQ_SEND_RECV = (1 << 19), /* device supports NCQ SEND and RECV */
-	ATA_DFLAG_NCQ_PRIO	= (1 << 20), /* device supports NCQ priority */
-	ATA_DFLAG_NCQ_PRIO_ENABLED = (1 << 21), /* Priority cmds sent to dev */
-	ATA_DFLAG_INIT_MASK	= (1 << 24) - 1,
+	ATA_DFLAG_INIT_MASK	= (1 << 19) - 1,
 
+	ATA_DFLAG_NCQ_PRIO_ENABLED = (1 << 19), /* Priority cmds sent to dev */
 	ATA_DFLAG_DETACH	= (1 << 24),
 	ATA_DFLAG_DETACHED	= (1 << 25),
-
 	ATA_DFLAG_DA		= (1 << 26), /* device supports Device Attention */
 	ATA_DFLAG_DEVSLP	= (1 << 27), /* device supports Device Sleep */
 	ATA_DFLAG_ACPI_DISABLED = (1 << 28), /* ACPI for the device is disabled */
@@ -200,13 +199,14 @@ enum {
 	/* struct ata_queued_cmd flags */
 	ATA_QCFLAG_ACTIVE	= (1 << 0), /* cmd not yet ack'd to scsi lyer */
 	ATA_QCFLAG_DMAMAP	= (1 << 1), /* SG table is DMA mapped */
+	ATA_QCFLAG_RTF_FILLED	= (1 << 2), /* result TF has been filled */
 	ATA_QCFLAG_IO		= (1 << 3), /* standard IO command */
 	ATA_QCFLAG_RESULT_TF	= (1 << 4), /* result TF requested */
 	ATA_QCFLAG_CLEAR_EXCL	= (1 << 5), /* clear excl_link on completion */
 	ATA_QCFLAG_QUIET	= (1 << 6), /* don't report device error */
 	ATA_QCFLAG_RETRY	= (1 << 7), /* retry after failure */
 
-	ATA_QCFLAG_FAILED	= (1 << 16), /* cmd failed and is owned by EH */
+	ATA_QCFLAG_EH		= (1 << 16), /* cmd aborted and owned by EH */
 	ATA_QCFLAG_SENSE_VALID	= (1 << 17), /* sense data valid */
 	ATA_QCFLAG_EH_SCHEDULED = (1 << 18), /* EH scheduled (obsolete) */
 
@@ -876,7 +876,8 @@ struct ata_port_operations {
 	int (*check_atapi_dma)(struct ata_queued_cmd *qc);
 	enum ata_completion_errors (*qc_prep)(struct ata_queued_cmd *qc);
 	unsigned int (*qc_issue)(struct ata_queued_cmd *qc);
-	bool (*qc_fill_rtf)(struct ata_queued_cmd *qc);
+	void (*qc_fill_rtf)(struct ata_queued_cmd *qc);
+	void (*qc_ncq_fill_rtf)(struct ata_port *ap, u64 done_mask);
 
 	/*
 	 * Configuration and exception handling
@@ -1756,7 +1757,7 @@ static inline struct ata_queued_cmd *ata_qc_from_tag(struct ata_port *ap,
 		return qc;
 
 	if ((qc->flags & (ATA_QCFLAG_ACTIVE |
-			  ATA_QCFLAG_FAILED)) == ATA_QCFLAG_ACTIVE)
+			  ATA_QCFLAG_EH)) == ATA_QCFLAG_ACTIVE)
 		return qc;
 
 	return NULL;
@@ -1936,7 +1937,7 @@ extern void ata_sff_queue_delayed_work(struct delayed_work *dwork,
 		unsigned long delay);
 extern void ata_sff_queue_pio_task(struct ata_link *link, unsigned long delay);
 extern unsigned int ata_sff_qc_issue(struct ata_queued_cmd *qc);
-extern bool ata_sff_qc_fill_rtf(struct ata_queued_cmd *qc);
+extern void ata_sff_qc_fill_rtf(struct ata_queued_cmd *qc);
 extern unsigned int ata_sff_port_intr(struct ata_port *ap,
 				      struct ata_queued_cmd *qc);
 extern irqreturn_t ata_sff_interrupt(int irq, void *dev_instance);
