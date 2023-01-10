@@ -3092,6 +3092,8 @@
 
 #define PCI_VENDOR_ID_3COM_2		0xa727
 
+#define PCI_VENDOR_ID_SOLIDRUN          0xd063
+
 #define PCI_VENDOR_ID_DIGIUM		0xd161
 #define PCI_DEVICE_ID_DIGIUM_HFC4S	0xb410
 
@@ -3114,5 +3116,7 @@
 #define PCI_VENDOR_ID_OCZ		0x1b85
 
 #define PCI_VENDOR_ID_NCUBE		0x10ff
+
+#define PCI_VENDOR_ID_SOLIDRUN		0xd063
 
 #endif /* _LINUX_PCI_IDS_H */
