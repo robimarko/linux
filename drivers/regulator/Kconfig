@@ -1706,6 +1706,7 @@ config REGULATOR_CPR3_NPU
 config REGULATOR_CPR4_APSS
 	bool "QCOM CPR4 regulator for APSS"
 	depends on OF && REGULATOR_CPR3
+	depends on NVMEM_QCOM_QFPROM
 	help
 	  This driver supports Qualcomm Technologies, Inc. APSS application
 	  processor specific features including memory array power mux (APM)
