@@ -27,6 +27,8 @@
 #define QCN9074_DEVICE_ID		0x1104
 #define WCN6855_DEVICE_ID		0x1103
 
+#define ATH11K_PCIE_LOCAL_REG_PCIE_LOCAL_RSV0  0x1E03164
+
 static const struct pci_device_id ath11k_pci_id_table[] = {
 	{ PCI_VDEVICE(QCOM, QCA6390_DEVICE_ID) },
 	{ PCI_VDEVICE(QCOM, WCN6855_DEVICE_ID) },
@@ -367,6 +369,9 @@ static void ath11k_pci_sw_reset(struct ath11k_base *ab, bool power_on)
 	ath11k_mhi_set_mhictrl_reset(ab);
 }
 
+#define ATH11K_QRTR_INSTANCE_PCI_DOMAIN		GENMASK(3, 0)
+#define ATH11K_QRTR_INSTANCE_PCI_BUS_NUM	GENMASK(7, 4)
+
 static void ath11k_pci_init_qmi_ce_config(struct ath11k_base *ab)
 {
 	struct ath11k_qmi_ce_cfg *cfg = &ab->qmi.ce_cfg;
@@ -383,6 +388,15 @@ static void ath11k_pci_init_qmi_ce_config(struct ath11k_base *ab)
 
 	ath11k_ce_get_shadow_config(ab, &cfg->shadow_reg_v2,
 				    &cfg->shadow_reg_v2_len);
+
+	if (test_bit(ATH11K_FW_FEATURE_MULTI_QRTR_ID, ab->fw.fw_features)) {
+		ab_pci->instance_id =
+			FIELD_PREP(ATH11K_QRTR_INSTANCE_PCI_DOMAIN,
+				   pci_domain_nr(bus)) |
+			FIELD_PREP(ATH11K_QRTR_INSTANCE_PCI_BUS_NUM,
+				   bus->number);
+		ab->qmi.service_ins_id += ab_pci->instance_id;
+	}
 }
 
 static void ath11k_pci_msi_config(struct ath11k_pci *ab_pci, bool enable)
@@ -598,6 +612,18 @@ static void ath11k_pci_aspm_restore(struct ath11k_pci *ab_pci)
 					   ab_pci->link_ctl);
 }
 
+static void ath11k_pci_update_qrtr_node_id(struct ath11k_base *ab)
+{
+	struct ath11k_pci *ab_pci = ath11k_pci_priv(ab);
+	u32 reg;
+
+	reg = ATH11K_PCIE_LOCAL_REG_PCIE_LOCAL_RSV0 & ATH11K_PCI_WINDOW_RANGE_MASK;
+	ath11k_pcic_write32(ab, reg, ab_pci->instance_id);
+
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "pci reg 0x%x instance_id 0x%x read val 0x%x\n",
+		   reg, ab_pci->instance_id, ath11k_pcic_read32(ab, reg));
+}
+
 static int ath11k_pci_power_up(struct ath11k_base *ab)
 {
 	struct ath11k_pci *ab_pci = ath11k_pci_priv(ab);
@@ -613,6 +639,9 @@ static int ath11k_pci_power_up(struct ath11k_base *ab)
 	ath11k_pci_aspm_disable(ab_pci);
 
 	ath11k_pci_msi_enable(ab_pci);
+
+	if (test_bit(ATH11K_FW_FEATURE_MULTI_QRTR_ID, ab->fw.fw_features))
+		ath11k_pci_update_qrtr_node_id(ab);
 
 	ret = ath11k_mhi_start(ab_pci);
 	if (ret) {
