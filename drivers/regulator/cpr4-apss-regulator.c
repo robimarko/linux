@@ -32,6 +32,7 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
+#include <linux/nvmem-consumer.h>
 
 #include "cpr3-regulator.h"
 
@@ -442,7 +443,6 @@ static int ipq9574_apss_fuse_ref_volt
  */
 static int cpr4_ipq807x_apss_read_fuse_data(struct cpr3_regulator *vreg)
 {
-	void __iomem *base = vreg->thread->ctrl->fuse_base;
 	struct cpr4_ipq807x_apss_fuses *fuse;
 	int i, rc;
 
@@ -450,16 +450,14 @@ static int cpr4_ipq807x_apss_read_fuse_data(struct cpr3_regulator *vreg)
 	if (!fuse)
 		return -ENOMEM;
 
-	rc = cpr3_read_fuse_param(base, vreg->cpr4_regulator_data->cpr3_fuse_params->apss_speed_bin_param,
-				  &fuse->speed_bin);
+	rc = nvmem_cell_read_variable_le_u64(vreg->thread->ctrl->dev, "cpr_speed_bin", &fuse->speed_bin);
 	if (rc) {
 		cpr3_err(vreg, "Unable to read speed bin fuse, rc=%d\n", rc);
 		return rc;
 	}
 	cpr3_info(vreg, "speed bin = %llu\n", fuse->speed_bin);
 
-	rc = cpr3_read_fuse_param(base, vreg->cpr4_regulator_data->cpr3_fuse_params->cpr_fusing_rev_param,
-				  &fuse->cpr_fusing_rev);
+	rc = nvmem_cell_read_variable_le_u64(vreg->thread->ctrl->dev, "cpr_fuse_revision", &fuse->cpr_fusing_rev);
 	if (rc) {
 		cpr3_err(vreg, "Unable to read CPR fusing revision fuse, rc=%d\n",
 			rc);
@@ -467,8 +465,7 @@ static int cpr4_ipq807x_apss_read_fuse_data(struct cpr3_regulator *vreg)
 	}
 	cpr3_info(vreg, "CPR fusing revision = %llu\n", fuse->cpr_fusing_rev);
 
-	rc = cpr3_read_fuse_param(base, vreg->cpr4_regulator_data->cpr3_fuse_params->misc_fuse_volt_adj_param,
-				  &fuse->misc);
+	rc = nvmem_cell_read_variable_le_u64(vreg->thread->ctrl->dev, "cpr_misc_volt_adj", &fuse->misc);
 	if (rc) {
 		cpr3_err(vreg, "Unable to read misc voltage adjustment fuse, rc=%d\n",
 			rc);
@@ -482,45 +479,50 @@ static int cpr4_ipq807x_apss_read_fuse_data(struct cpr3_regulator *vreg)
 	}
 
 	for (i = 0; i < g_valid_fuse_count; i++) {
-		rc = cpr3_read_fuse_param(base,
-				vreg->cpr4_regulator_data->cpr3_fuse_params->apss_init_voltage_param[i],
-				&fuse->init_voltage[i]);
+		char efuse_id[30];
+
+		snprintf(efuse_id, sizeof(efuse_id), "cpr_init_voltage%d", i);
+		rc = nvmem_cell_read_variable_le_u64(vreg->thread->ctrl->dev, efuse_id, &fuse->init_voltage[i]);
 		if (rc) {
 			cpr3_err(vreg, "Unable to read fuse-corner %d initial voltage fuse, rc=%d\n",
 				i, rc);
 			return rc;
 		}
+		cpr3_info(vreg, "fuse-corner %d initial voltage fuse = %llu\n",i, fuse->init_voltage[i]);
 
-		rc = cpr3_read_fuse_param(base,
-				vreg->cpr4_regulator_data->cpr3_fuse_params->apss_target_quot_param[i],
-				&fuse->target_quot[i]);
+		snprintf(efuse_id, sizeof(efuse_id), "cpr0_quotient%d", i);
+		rc = nvmem_cell_read_variable_le_u64(vreg->thread->ctrl->dev, efuse_id, &fuse->target_quot[i]);
 		if (rc) {
 			cpr3_err(vreg, "Unable to read fuse-corner %d target quotient fuse, rc=%d\n",
 				i, rc);
 			return rc;
 		}
+		cpr3_info(vreg, "fuse-corner %d target quotient fuse = %llu\n",i, fuse->target_quot[i]);
 
-		rc = cpr3_read_fuse_param(base,
-				vreg->cpr4_regulator_data->cpr3_fuse_params->apss_ro_sel_param[i],
-				&fuse->ro_sel[i]);
+		snprintf(efuse_id, sizeof(efuse_id), "cpr_ro_sel%d", i);
+		rc = nvmem_cell_read_variable_le_u64(vreg->thread->ctrl->dev, efuse_id, &fuse->ro_sel[i]);
 		if (rc) {
 			cpr3_err(vreg, "Unable to read fuse-corner %d RO select fuse, rc=%d\n",
 				i, rc);
 			return rc;
 		}
+		cpr3_info(vreg, "Fuse-corner %d RO select fuse = %llu\n",i, fuse->ro_sel[i]);
 
-		rc = cpr3_read_fuse_param(base,
-				vreg->cpr4_regulator_data->cpr3_fuse_params->apss_quot_offset_param[i],
-				&fuse->quot_offset[i]);
-		if (rc) {
-			cpr3_err(vreg, "Unable to read fuse-corner %d quotient offset fuse, rc=%d\n",
-				i, rc);
-			return rc;
+		if (i == 0)
+			fuse->quot_offset[i] = 0;
+		else {
+			snprintf(efuse_id, sizeof(efuse_id), "cpr_quot%d_offset", i);
+			rc = nvmem_cell_read_variable_le_u64(vreg->thread->ctrl->dev, efuse_id, &fuse->quot_offset[i]);
+			if (rc) {
+				cpr3_err(vreg, "Unable to read fuse-corner %d quotient offset fuse, rc=%d\n",
+					i, rc);
+				return rc;
+			}
 		}
+		cpr3_info(vreg, "fuse-corner %d quotient offset fuse = %llu\n",i, fuse->quot_offset[i]);
 	}
 
-	rc = cpr3_read_fuse_param(base, vreg->cpr4_regulator_data->cpr3_fuse_params->cpr_boost_fuse_cfg_param,
-				  &fuse->boost_cfg);
+	rc = nvmem_cell_read_variable_le_u64(vreg->thread->ctrl->dev, "cpr_boost_cfg" , &fuse->boost_cfg);
 	if (rc) {
 		cpr3_err(vreg, "Unable to read CPR boost config fuse, rc=%d\n",
 			rc);
@@ -530,9 +532,7 @@ static int cpr4_ipq807x_apss_read_fuse_data(struct cpr3_regulator *vreg)
 			fuse->boost_cfg, boost_fuse[fuse->boost_cfg]
 			? "enable" : "disable");
 
-	rc = cpr3_read_fuse_param(base,
-				vreg->cpr4_regulator_data->cpr3_fuse_params->apss_boost_fuse_volt_param,
-				&fuse->boost_voltage);
+	rc = nvmem_cell_read_variable_le_u64(vreg->thread->ctrl->dev, "cpr_boost_volt" , &fuse->boost_voltage);
 	if (rc) {
 		cpr3_err(vreg, "failed to read boost fuse voltage, rc=%d\n",
 			rc);
