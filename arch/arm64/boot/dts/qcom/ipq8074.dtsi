@@ -483,17 +483,17 @@
 				bits = <4 12>;
 			};
 
-			cpr_efuse_quot0_offset: quot0_offset@23d {
+			cpr_efuse_quot1_offset: quot1_offset@23d {
 				reg = <0x23d 0x2>;
 				bits = <6 7>;
 			};
 
-			cpr_efuse_quot1_offset: quot1_offset@23c {
+			cpr_efuse_quot2_offset: quot2_offset@23c {
 				reg = <0x23c 0x2>;
 				bits = <7 7>;
 			};
 
-			cpr_efuse_quot2_offset: quot2_offset@23c {
+			cpr_efuse_quot3_offset: quot3_offset@23c {
 				reg = <0x23c 0x1>;
 				bits = <0 7>;
 			};
