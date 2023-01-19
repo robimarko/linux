@@ -21,6 +21,7 @@
 #include <linux/of_device.h>
 #include <linux/slab.h>
 #include <linux/thermal.h>
+#include <linux/nvmem-consumer.h>
 
 #include "cpr3-regulator.h"
 
@@ -144,7 +145,6 @@ void cpr3_npu_temp_notify(int sensor, int temp, int low_notif)
  */
 static int cpr3_ipq807x_npu_read_fuse_data(struct cpr3_regulator *vreg)
 {
-	void __iomem *base = vreg->thread->ctrl->fuse_base;
 	struct cpr3_ipq807x_npu_fuses *fuse;
 	int i, rc;
 
@@ -153,14 +153,17 @@ static int cpr3_ipq807x_npu_read_fuse_data(struct cpr3_regulator *vreg)
 		return -ENOMEM;
 
 	for (i = 0; i < g_valid_npu_fuse_count; i++) {
-		rc = cpr3_read_fuse_param(base,
-					  vreg->cpr3_regulator_data->init_voltage_param[i],
-					  &fuse->init_voltage[i]);
+		char efuse_id[30];
+
+		snprintf(efuse_id, sizeof(efuse_id), "cpr_npu_init_voltage%d", i);
+		rc = nvmem_cell_read_variable_le_u64(vreg->thread->ctrl->dev, efuse_id, &fuse->init_voltage[i]);
 		if (rc) {
 			cpr3_err(vreg, "Unable to read fuse-corner %d initial voltage fuse, rc=%d\n",
 				 i, rc);
 			return rc;
 		}
+
+		cpr3_info(vreg, "fuse-corner %d initial voltage fuse = %llu\n", i, fuse->init_voltage[i]);
 	}
 
 	vreg->fuse_corner_count	= g_valid_npu_fuse_count;
