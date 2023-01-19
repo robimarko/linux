@@ -497,6 +497,16 @@
 				reg = <0x23c 0x1>;
 				bits = <0 7>;
 			};
+
+			cpr_efuse_npu_init_voltage0: npu-ivoltage0@250 {
+				reg = <0x250 0x2>;
+				bits = <6 6>;
+			};
+
+			cpr_efuse_npu_init_voltage1: npu-ivoltage1@250 {
+				reg = <0x250 0x1>;
+				bits = <0 6>;
+			};
 		};
 
 		prng: rng@e3000 {
