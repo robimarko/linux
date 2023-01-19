@@ -2319,6 +2319,127 @@ static const struct cpr_acc_desc sdm630_cpr_acc_desc = {
 	.cpr_desc = &sdm630_cpr_desc,
 };
 
+static const int ipq8074_scaling_factor[][CPR3_RO_COUNT] = {
+	/* Same RO factors for all fuse corners */
+	{
+		3970, 4150, 0, 2280, 2520, 2470, 2250, 2280,
+		2390, 2330, 2530, 2500, 850, 2900, 2510, 2170,
+	}
+};
+
+static const struct cpr_thread_desc ipq8074_thread_apss_hk = {
+	.controller_id = 0,
+	.hw_tid = 0,
+	.ro_scaling_factor = ipq8074_scaling_factor,
+	.ro_avail_corners = ARRAY_SIZE(ipq8074_scaling_factor),
+	.sensor_range_start = 4,
+	.sensor_range_end = 13,
+	.init_voltage_step = 8000,
+	.init_voltage_width = 6,
+	.step_quot_init_min = 12,
+	.step_quot_init_max = 14,
+	.num_fuse_corners = 4,
+	.fuse_corner_data = (struct fuse_corner_data[]){
+		/* fuse corner 0 */
+		{
+			.ref_uV = 720000,
+			.max_uV = 724000,
+			.min_uV = 588000,
+			.range_uV = 32000,
+			.volt_cloop_adjust = -30000,
+			.volt_oloop_adjust = 0,
+			.max_volt_scale = 10,
+			.max_quot_scale = 360,
+			.quot_offset = 0,
+			.quot_scale = 1,
+			.quot_adjust = 0,
+			.quot_offset_scale = 5,
+			.quot_offset_adjust = 0,
+		},
+		/* fuse corner 1 */
+		{
+			.ref_uV = 864000,
+			.max_uV = 788000,
+			.min_uV = 652000,
+			.range_uV = 40000,
+			.volt_cloop_adjust = -30000,
+			.volt_oloop_adjust = 0,
+			.max_volt_scale = 500,
+			.max_quot_scale = 550,
+			.quot_offset = 0,
+			.quot_scale = 1,
+			.quot_adjust = 0,
+			.quot_offset_scale = 5,
+			.quot_offset_adjust = 0,
+		},
+		/* fuse corner 2 */
+		{
+			.ref_uV = 992000,
+			.max_uV = 1068000,
+			.min_uV = 800000,
+			.range_uV = 40000,
+			.volt_cloop_adjust = -30000,
+			.volt_oloop_adjust = 0,
+			.max_volt_scale = 2370,
+			.max_quot_scale = 550,
+			.quot_offset = 0,
+			.quot_scale = 1,
+			.quot_adjust = 0,
+			.quot_offset_scale = 5,
+			.quot_offset_adjust = 0,
+		},
+		/* fuse corner 3 */
+		{
+			.ref_uV = 1064000,
+			.max_uV = 1068000,
+			.min_uV = 800000,
+			.range_uV = 40000,
+			.volt_cloop_adjust = -30000,
+			.volt_oloop_adjust = 0,
+			.max_volt_scale = 2370,
+			.max_quot_scale = 550,
+			.quot_offset = 0,
+			.quot_scale = 1,
+			.quot_adjust = 0,
+			.quot_offset_scale = 5,
+			.quot_offset_adjust = 0,
+		},
+	},
+};
+
+static const struct cpr_desc ipq8074_cpr4_hk_desc = {
+	.cpr_type = CTRL_TYPE_CPR4,
+	.num_threads = 1,
+	.apm_threshold = 848000,
+	.apm_crossover = 0,
+	.apm_hysteresis = 0,
+	.cpr_base_voltage = 592000,
+	.cpr_max_voltage = 1064000,
+	.timer_delay_us = 5000,
+	.timer_cons_up = 0,
+	.timer_cons_down = 0,
+	.up_threshold = 4,
+	.down_threshold = 1,
+	.idle_clocks = 15,
+	.count_mode = CPR3_CPR_CTL_COUNT_MODE_ALL_AT_ONCE_MIN,
+	.count_repeat = 14,
+	.gcnt_us = 1,
+	.vreg_step_fixed = 8000,
+	.vreg_step_up_limit = 1,
+	.vreg_step_down_limit = 1,
+	.vdd_settle_time_us = 0,
+	.corner_settle_time_us = 5,
+	.reduce_to_corner_uV = true,
+	.hw_closed_loop_en = true,
+	.threads = (const struct cpr_thread_desc *[]) {
+		&ipq8074_thread_apss_hk,
+	},
+};
+
+static const struct cpr_acc_desc ipq8074_cpr4_hk_acc_desc = {
+	.cpr_desc = &ipq8074_cpr4_hk_desc,
+};
+
 static unsigned int cpr_get_performance_state(struct generic_pm_domain *genpd,
 					      struct dev_pm_opp *opp)
 {
@@ -2905,6 +3026,7 @@ static int cpr_remove(struct platform_device *pdev)
 static const struct of_device_id cpr3_match_table[] = {
 	{ .compatible = "qcom,msm8998-cprh", .data = &msm8998_cpr_acc_desc },
 	{ .compatible = "qcom,sdm630-cprh", .data = &sdm630_cpr_acc_desc },
+	{ .compatible = "qcom,ipq8074-cpr4-hk", .data = &ipq8074_cpr4_hk_acc_desc },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, cpr3_match_table);
