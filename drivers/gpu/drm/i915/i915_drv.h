@@ -85,6 +85,37 @@ struct vlv_s0ix_state;
 
 #define GEM_QUIRK_PIN_SWIZZLED_PAGES	BIT(0)
 
+/* Data Stolen Memory (DSM) aka "i915 stolen memory" */
+struct i915_dsm {
+	/*
+	 * The start and end of DSM which we can optionally use to create GEM
+	 * objects backed by stolen memory.
+	 *
+	 * Note that usable_size tells us exactly how much of this we are
+	 * actually allowed to use, given that some portion of it is in fact
+	 * reserved for use by hardware functions.
+	 */
+	struct resource stolen;
+
+	/*
+	 * Reserved portion of DSM.
+	 */
+	struct resource reserved;
+
+	/*
+	 * Total size minus reserved ranges.
+	 *
+	 * DSM is segmented in hardware with different portions offlimits to
+	 * certain functions.
+	 *
+	 * The drm_mm is initialised to the total accessible range, as found
+	 * from the PCI config. On Broadwell+, this is further restricted to
+	 * avoid the first page! The upper end of DSM is reserved for hardware
+	 * functions and similarly removed from the accessible range.
+	 */
+	resource_size_t usable_size;
+};
+
 struct i915_suspend_saved_registers {
 	u32 saveDSPARB;
 	u32 saveSWF0[16];
@@ -204,29 +235,7 @@ struct drm_i915_private {
 	struct intel_runtime_info __runtime; /* Use RUNTIME_INFO() to access. */
 	struct intel_driver_caps caps;
 
-	/**
-	 * Data Stolen Memory - aka "i915 stolen memory" gives us the start and
-	 * end of stolen which we can optionally use to create GEM objects
-	 * backed by stolen memory. Note that stolen_usable_size tells us
-	 * exactly how much of this we are actually allowed to use, given that
-	 * some portion of it is in fact reserved for use by hardware functions.
-	 */
-	struct resource dsm;
-	/**
-	 * Reseved portion of Data Stolen Memory
-	 */
-	struct resource dsm_reserved;
-
-	/*
-	 * Stolen memory is segmented in hardware with different portions
-	 * offlimits to certain functions.
-	 *
-	 * The drm_mm is initialised to the total accessible range, as found
-	 * from the PCI config. On Broadwell+, this is further restricted to
-	 * avoid the first page! The upper end of stolen memory is reserved for
-	 * hardware functions and similarly removed from the accessible range.
-	 */
-	resource_size_t stolen_usable_size;	/* Total size minus reserved ranges */
+	struct i915_dsm dsm;
 
 	struct intel_uncore uncore;
 	struct intel_uncore_mmio_debug mmio_debug;
@@ -299,14 +308,6 @@ struct drm_i915_private {
 
 	struct i915_gpu_error gpu_error;
 
-	/*
-	 * Shadows for CHV DPLL_MD regs to keep the state
-	 * checker somewhat working in the presence hardware
-	 * crappiness (can't read out DPLL_MD for pipes B & C).
-	 */
-	u32 chv_dpll_md[I915_MAX_PIPES];
-	u32 bxt_phy_grc;
-
 	u32 suspend_count;
 	struct i915_suspend_saved_registers regfile;
 	struct vlv_s0ix_state *vlv_s0ix_state;
@@ -365,18 +366,10 @@ struct drm_i915_private {
 		struct file *mmap_singleton;
 	} gem;
 
-	u8 pch_ssc_use;
-
 	/* For i915gm/i945gm vblank irq workaround */
 	u8 vblank_enabled;
 
 	bool irq_enabled;
-
-	/*
-	 * DG2: Mask of PHYs that were not calibrated by the firmware
-	 * and should not be used.
-	 */
-	u8 snps_phy_failed_calibration;
 
 	struct i915_pmu pmu;
 
