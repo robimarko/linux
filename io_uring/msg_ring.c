@@ -49,11 +49,15 @@ static void io_msg_tw_complete(struct callback_head *head)
 	struct io_msg *msg = container_of(head, struct io_msg, tw);
 	struct io_kiocb *req = cmd_to_io_kiocb(msg);
 	struct io_ring_ctx *target_ctx = req->file->private_data;
+	u32 flags = 0;
 	int ret = 0;
+
+	if (msg->flags & IORING_MSG_RING_FLAGS_PASS)
+		flags = msg->cqe_flags;
 
 	if (current->flags & PF_EXITING)
 		ret = -EOWNERDEAD;
-	else if (!io_post_aux_cqe(target_ctx, msg->user_data, msg->len, 0))
+	else if (!io_post_aux_cqe(target_ctx, msg->user_data, msg->len, flags))
 		ret = -EOVERFLOW;
 
 	if (ret < 0)
