@@ -210,6 +210,11 @@
 		qcom,cpr-ctrl-name = "npu";
 		vdd-supply = <&s4>;
 		qcom,voltage-step = <8000>;
+		nvmem-cells = <&cpr_efuse_npu_init_voltage0>,
+			      <&cpr_efuse_npu_init_voltage1>;
+		nvmem-cell-names = "cpr_npu_init_voltage0",
+				   "cpr_npu_init_voltage1";
+
 		thread@0 {
 			qcom,cpr-thread-id = <0>;
 			qcom,cpr-consecutive-up = <0>;
