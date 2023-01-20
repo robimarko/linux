@@ -292,12 +292,12 @@ static void _rtl92e_read_eeprom_info(struct net_device *dev)
 	if (EEPROMId != RTL8190_EEPROM_ID) {
 		netdev_err(dev, "%s(): Invalid EEPROM ID: %x\n", __func__,
 			   EEPROMId);
-		priv->AutoloadFailFlag = true;
+		priv->autoload_fail_flag = true;
 	} else {
-		priv->AutoloadFailFlag = false;
+		priv->autoload_fail_flag = false;
 	}
 
-	if (!priv->AutoloadFailFlag) {
+	if (!priv->autoload_fail_flag) {
 		priv->eeprom_vid = rtl92e_eeprom_read(dev, EEPROM_VID >> 1);
 		priv->eeprom_did = rtl92e_eeprom_read(dev, EEPROM_DID >> 1);
 
@@ -306,7 +306,7 @@ static void _rtl92e_read_eeprom_info(struct net_device *dev)
 		priv->eeprom_CustomerID = usValue & 0xff;
 		usValue = rtl92e_eeprom_read(dev,
 					     EEPROM_ICVersion_ChannelPlan>>1);
-		priv->eeprom_ChannelPlan = usValue&0xff;
+		priv->eeprom_chnl_plan = usValue&0xff;
 		IC_Version = (usValue & 0xff00)>>8;
 
 		ICVer8192 = IC_Version & 0xf;
@@ -328,10 +328,10 @@ static void _rtl92e_read_eeprom_info(struct net_device *dev)
 		priv->eeprom_vid = 0;
 		priv->eeprom_did = 0;
 		priv->eeprom_CustomerID = 0;
-		priv->eeprom_ChannelPlan = 0;
+		priv->eeprom_chnl_plan = 0;
 	}
 
-	if (!priv->AutoloadFailFlag) {
+	if (!priv->autoload_fail_flag) {
 		u8 addr[ETH_ALEN];
 
 		for (i = 0; i < 6; i += 2) {
@@ -345,125 +345,125 @@ static void _rtl92e_read_eeprom_info(struct net_device *dev)
 	}
 
 	if (priv->card_8192_version > VERSION_8190_BD)
-		priv->bTXPowerDataReadFromEEPORM = true;
+		priv->tx_pwr_data_read_from_eeprom = true;
 	else
-		priv->bTXPowerDataReadFromEEPORM = false;
+		priv->tx_pwr_data_read_from_eeprom = false;
 
 	priv->rf_type = RTL819X_DEFAULT_RF_TYPE;
 
 	if (priv->card_8192_version > VERSION_8190_BD) {
-		if (!priv->AutoloadFailFlag) {
+		if (!priv->autoload_fail_flag) {
 			tempval = (rtl92e_eeprom_read(dev,
 						      (EEPROM_RFInd_PowerDiff >> 1))) & 0xff;
-			priv->EEPROMLegacyHTTxPowerDiff = tempval & 0xf;
+			priv->eeprom_legacy_ht_tx_pwr_diff = tempval & 0xf;
 
 			if (tempval&0x80)
 				priv->rf_type = RF_1T2R;
 			else
 				priv->rf_type = RF_2T4R;
 		} else {
-			priv->EEPROMLegacyHTTxPowerDiff = 0x04;
+			priv->eeprom_legacy_ht_tx_pwr_diff = 0x04;
 		}
 
-		if (!priv->AutoloadFailFlag)
-			priv->EEPROMThermalMeter = ((rtl92e_eeprom_read(dev,
+		if (!priv->autoload_fail_flag)
+			priv->eeprom_thermal_meter = ((rtl92e_eeprom_read(dev,
 						   (EEPROM_ThermalMeter>>1))) &
 						   0xff00) >> 8;
 		else
-			priv->EEPROMThermalMeter = EEPROM_Default_ThermalMeter;
-		priv->TSSI_13dBm = priv->EEPROMThermalMeter * 100;
+			priv->eeprom_thermal_meter = EEPROM_Default_ThermalMeter;
+		priv->tssi_13dBm = priv->eeprom_thermal_meter * 100;
 
 		if (priv->epromtype == EEPROM_93C46) {
-			if (!priv->AutoloadFailFlag) {
+			if (!priv->autoload_fail_flag) {
 				usValue = rtl92e_eeprom_read(dev,
 					  EEPROM_TxPwDiff_CrystalCap >> 1);
-				priv->EEPROMAntPwDiff = usValue & 0x0fff;
-				priv->EEPROMCrystalCap = (usValue & 0xf000)
+				priv->eeprom_ant_pwr_diff = usValue & 0x0fff;
+				priv->eeprom_crystal_cap = (usValue & 0xf000)
 							 >> 12;
 			} else {
-				priv->EEPROMAntPwDiff =
+				priv->eeprom_ant_pwr_diff =
 					 EEPROM_Default_AntTxPowerDiff;
-				priv->EEPROMCrystalCap =
+				priv->eeprom_crystal_cap =
 					 EEPROM_Default_TxPwDiff_CrystalCap;
 			}
 
 			for (i = 0; i < 14; i += 2) {
-				if (!priv->AutoloadFailFlag)
+				if (!priv->autoload_fail_flag)
 					usValue = rtl92e_eeprom_read(dev,
 						  (EEPROM_TxPwIndex_CCK + i) >> 1);
 				else
 					usValue = EEPROM_Default_TxPower;
-				*((u16 *)(&priv->EEPROMTxPowerLevelCCK[i])) =
+				*((u16 *)(&priv->eeprom_tx_pwr_level_cck[i])) =
 								 usValue;
 			}
 			for (i = 0; i < 14; i += 2) {
-				if (!priv->AutoloadFailFlag)
+				if (!priv->autoload_fail_flag)
 					usValue = rtl92e_eeprom_read(dev,
 						(EEPROM_TxPwIndex_OFDM_24G + i) >> 1);
 				else
 					usValue = EEPROM_Default_TxPower;
-				*((u16 *)(&priv->EEPROMTxPowerLevelOFDM24G[i]))
+				*((u16 *)(&priv->eeprom_tx_pwr_level_ofdm24g[i]))
 							 = usValue;
 			}
 		}
 		if (priv->epromtype == EEPROM_93C46) {
 			for (i = 0; i < 14; i++) {
-				priv->TxPowerLevelCCK[i] =
-					 priv->EEPROMTxPowerLevelCCK[i];
-				priv->TxPowerLevelOFDM24G[i] =
-					 priv->EEPROMTxPowerLevelOFDM24G[i];
+				priv->tx_pwr_level_cck[i] =
+					 priv->eeprom_tx_pwr_level_cck[i];
+				priv->tx_pwr_level_ofdm_24g[i] =
+					 priv->eeprom_tx_pwr_level_ofdm24g[i];
 			}
-			priv->LegacyHTTxPowerDiff =
-					 priv->EEPROMLegacyHTTxPowerDiff;
-			priv->AntennaTxPwDiff[0] = priv->EEPROMAntPwDiff & 0xf;
-			priv->AntennaTxPwDiff[1] = (priv->EEPROMAntPwDiff &
+			priv->legacy_ht_tx_pwr_diff =
+					 priv->eeprom_legacy_ht_tx_pwr_diff;
+			priv->antenna_tx_pwr_diff[0] = priv->eeprom_ant_pwr_diff & 0xf;
+			priv->antenna_tx_pwr_diff[1] = (priv->eeprom_ant_pwr_diff &
 							0xf0) >> 4;
-			priv->AntennaTxPwDiff[2] = (priv->EEPROMAntPwDiff &
+			priv->antenna_tx_pwr_diff[2] = (priv->eeprom_ant_pwr_diff &
 							0xf00) >> 8;
-			priv->CrystalCap = priv->EEPROMCrystalCap;
-			priv->ThermalMeter[0] = priv->EEPROMThermalMeter & 0xf;
-			priv->ThermalMeter[1] = (priv->EEPROMThermalMeter &
+			priv->crystal_cap = priv->eeprom_crystal_cap;
+			priv->thermal_meter[0] = priv->eeprom_thermal_meter & 0xf;
+			priv->thermal_meter[1] = (priv->eeprom_thermal_meter &
 						     0xf0) >> 4;
 		} else if (priv->epromtype == EEPROM_93C56) {
 
 			for (i = 0; i < 3; i++) {
-				priv->TxPowerLevelCCK_A[i] =
+				priv->tx_pwr_level_cck_a[i] =
 					 priv->EEPROMRfACCKChnl1TxPwLevel[0];
-				priv->TxPowerLevelOFDM24G_A[i] =
+				priv->tx_pwr_level_ofdm_24g_a[i] =
 					 priv->EEPROMRfAOfdmChnlTxPwLevel[0];
-				priv->TxPowerLevelCCK_C[i] =
+				priv->tx_pwr_level_cck_c[i] =
 					 priv->EEPROMRfCCCKChnl1TxPwLevel[0];
-				priv->TxPowerLevelOFDM24G_C[i] =
+				priv->tx_pwr_level_ofdm_24g_c[i] =
 					 priv->EEPROMRfCOfdmChnlTxPwLevel[0];
 			}
 			for (i = 3; i < 9; i++) {
-				priv->TxPowerLevelCCK_A[i]  =
+				priv->tx_pwr_level_cck_a[i]  =
 					 priv->EEPROMRfACCKChnl1TxPwLevel[1];
-				priv->TxPowerLevelOFDM24G_A[i] =
+				priv->tx_pwr_level_ofdm_24g_a[i] =
 					 priv->EEPROMRfAOfdmChnlTxPwLevel[1];
-				priv->TxPowerLevelCCK_C[i] =
+				priv->tx_pwr_level_cck_c[i] =
 					 priv->EEPROMRfCCCKChnl1TxPwLevel[1];
-				priv->TxPowerLevelOFDM24G_C[i] =
+				priv->tx_pwr_level_ofdm_24g_c[i] =
 					 priv->EEPROMRfCOfdmChnlTxPwLevel[1];
 			}
 			for (i = 9; i < 14; i++) {
-				priv->TxPowerLevelCCK_A[i]  =
+				priv->tx_pwr_level_cck_a[i]  =
 					 priv->EEPROMRfACCKChnl1TxPwLevel[2];
-				priv->TxPowerLevelOFDM24G_A[i] =
+				priv->tx_pwr_level_ofdm_24g_a[i] =
 					 priv->EEPROMRfAOfdmChnlTxPwLevel[2];
-				priv->TxPowerLevelCCK_C[i] =
+				priv->tx_pwr_level_cck_c[i] =
 					 priv->EEPROMRfCCCKChnl1TxPwLevel[2];
-				priv->TxPowerLevelOFDM24G_C[i] =
+				priv->tx_pwr_level_ofdm_24g_c[i] =
 					 priv->EEPROMRfCOfdmChnlTxPwLevel[2];
 			}
-			priv->LegacyHTTxPowerDiff =
-				 priv->EEPROMLegacyHTTxPowerDiff;
-			priv->AntennaTxPwDiff[0] = 0;
-			priv->AntennaTxPwDiff[1] = 0;
-			priv->AntennaTxPwDiff[2] = 0;
-			priv->CrystalCap = priv->EEPROMCrystalCap;
-			priv->ThermalMeter[0] = priv->EEPROMThermalMeter & 0xf;
-			priv->ThermalMeter[1] = (priv->EEPROMThermalMeter &
+			priv->legacy_ht_tx_pwr_diff =
+				 priv->eeprom_legacy_ht_tx_pwr_diff;
+			priv->antenna_tx_pwr_diff[0] = 0;
+			priv->antenna_tx_pwr_diff[1] = 0;
+			priv->antenna_tx_pwr_diff[2] = 0;
+			priv->crystal_cap = priv->eeprom_crystal_cap;
+			priv->thermal_meter[0] = priv->eeprom_thermal_meter & 0xf;
+			priv->thermal_meter[1] = (priv->eeprom_thermal_meter &
 						     0xf0) >> 4;
 		}
 	}
@@ -473,9 +473,9 @@ static void _rtl92e_read_eeprom_info(struct net_device *dev)
 	priv->rf_chip = RF_8256;
 
 	if (priv->reg_chnl_plan == 0xf)
-		priv->ChannelPlan = priv->eeprom_ChannelPlan;
+		priv->chnl_plan = priv->eeprom_chnl_plan;
 	else
-		priv->ChannelPlan = priv->reg_chnl_plan;
+		priv->chnl_plan = priv->reg_chnl_plan;
 
 	if (priv->eeprom_vid == 0x1186 &&  priv->eeprom_did == 0x3304)
 		priv->CustomerID =  RT_CID_DLINK;
@@ -495,10 +495,10 @@ static void _rtl92e_read_eeprom_info(struct net_device *dev)
 		break;
 	case EEPROM_CID_TOSHIBA:
 		priv->CustomerID = RT_CID_TOSHIBA;
-		if (priv->eeprom_ChannelPlan&0x80)
-			priv->ChannelPlan = priv->eeprom_ChannelPlan&0x7f;
+		if (priv->eeprom_chnl_plan & 0x80)
+			priv->chnl_plan = priv->eeprom_chnl_plan & 0x7f;
 		else
-			priv->ChannelPlan = 0x0;
+			priv->chnl_plan = 0x0;
 		break;
 	case EEPROM_CID_Nettronix:
 		priv->CustomerID = RT_CID_Nettronix;
@@ -516,9 +516,9 @@ static void _rtl92e_read_eeprom_info(struct net_device *dev)
 		break;
 	}
 
-	if (priv->ChannelPlan > CHANNEL_PLAN_LEN - 1)
-		priv->ChannelPlan = 0;
-	priv->ChannelPlan = COUNTRY_CODE_WORLD_WIDE_13;
+	if (priv->chnl_plan > CHANNEL_PLAN_LEN - 1)
+		priv->chnl_plan = 0;
+	priv->chnl_plan = COUNTRY_CODE_WORLD_WIDE_13;
 
 	if (priv->eeprom_vid == 0x1186 &&  priv->eeprom_did == 0x3304)
 		priv->rtllib->bSupportRemoteWakeUp = true;
@@ -614,7 +614,7 @@ bool rtl92e_start_adapter(struct net_device *dev)
 
 start:
 	rtl92e_reset_desc_ring(dev);
-	priv->Rf_Mode = RF_OP_By_SW_3wire;
+	priv->rf_mode = RF_OP_By_SW_3wire;
 	if (priv->rst_progress == RESET_TYPE_NORESET) {
 		rtl92e_writeb(dev, ANAPAR, 0x37);
 		mdelay(500);
@@ -724,7 +724,7 @@ start:
 	}
 
 	tmpvalue = rtl92e_readb(dev, IC_VERRSION);
-	priv->IC_Cut = tmpvalue;
+	priv->ic_cut = tmpvalue;
 
 	bfirmwareok = rtl92e_init_fw(dev);
 	if (!bfirmwareok) {
@@ -760,14 +760,14 @@ start:
 	}
 
 	if (priv->rtllib->FwRWRF)
-		priv->Rf_Mode = RF_OP_By_FW;
+		priv->rf_mode = RF_OP_By_FW;
 	else
-		priv->Rf_Mode = RF_OP_By_SW_3wire;
+		priv->rf_mode = RF_OP_By_SW_3wire;
 
 	if (priv->rst_progress == RESET_TYPE_NORESET) {
 		rtl92e_dm_init_txpower_tracking(dev);
 
-		if (priv->IC_Cut >= IC_VersionCut_D) {
+		if (priv->ic_cut >= IC_VersionCut_D) {
 			tmpRegA = rtl92e_get_bb_reg(dev, rOFDM0_XATxIQImbalance,
 						    bMaskDWord);
 			rtl92e_get_bb_reg(dev, rOFDM0_XCTxIQImbalance, bMaskDWord);
@@ -787,14 +787,14 @@ start:
 
 			for (i = 0; i < CCKTxBBGainTableLength; i++) {
 				if (TempCCk == dm_cck_tx_bb_gain[i][0]) {
-					priv->CCKPresentAttentuation_20Mdefault = i;
+					priv->cck_present_attn_20m_def = i;
 					break;
 				}
 			}
-			priv->CCKPresentAttentuation_40Mdefault = 0;
-			priv->CCKPresentAttentuation_difference = 0;
+			priv->cck_present_attn_40m_def = 0;
+			priv->cck_present_attn_diff = 0;
 			priv->cck_present_attn =
-				  priv->CCKPresentAttentuation_20Mdefault;
+				  priv->cck_present_attn_20m_def;
 			priv->btxpower_tracking = false;
 		}
 	}
@@ -1074,7 +1074,7 @@ void  rtl92e_fill_tx_desc(struct net_device *dev, struct tx_desc *pdesc,
 			pTxFwInfo->TxSubCarrier = 0;
 		} else {
 			pTxFwInfo->TxBandwidth = 0;
-			pTxFwInfo->TxSubCarrier = priv->nCur40MhzPrimeSC;
+			pTxFwInfo->TxSubCarrier = priv->n_cur_40mhz_prime_sc;
 		}
 	} else {
 		pTxFwInfo->TxBandwidth = 0;
@@ -2123,24 +2123,24 @@ bool rtl92e_is_rx_stuck(struct net_device *dev)
 	}
 
 
-	SlotIndex = (priv->SilentResetRxSlotIndex++)%SilentResetRxSoltNum;
+	SlotIndex = (priv->silent_reset_rx_slot_index++)%SilentResetRxSoltNum;
 
 	if (priv->rx_ctr == RegRxCounter) {
-		priv->SilentResetRxStuckEvent[SlotIndex] = 1;
+		priv->silent_reset_rx_stuck_event[SlotIndex] = 1;
 
 		for (i = 0; i < SilentResetRxSoltNum; i++)
-			TotalRxStuckCount += priv->SilentResetRxStuckEvent[i];
+			TotalRxStuckCount += priv->silent_reset_rx_stuck_event[i];
 
 		if (TotalRxStuckCount == SilentResetRxSoltNum) {
 			bStuck = true;
 			for (i = 0; i < SilentResetRxSoltNum; i++)
 				TotalRxStuckCount +=
-					 priv->SilentResetRxStuckEvent[i];
+					 priv->silent_reset_rx_stuck_event[i];
 		}
 
 
 	} else {
-		priv->SilentResetRxStuckEvent[SlotIndex] = 0;
+		priv->silent_reset_rx_stuck_event[SlotIndex] = 0;
 	}
 
 	priv->rx_ctr = RegRxCounter;
@@ -2154,10 +2154,10 @@ bool rtl92e_is_tx_stuck(struct net_device *dev)
 	bool	bStuck = false;
 	u16	RegTxCounter = rtl92e_readw(dev, 0x128);
 
-	if (priv->TxCounter == RegTxCounter)
+	if (priv->tx_counter == RegTxCounter)
 		bStuck = true;
 
-	priv->TxCounter = RegTxCounter;
+	priv->tx_counter = RegTxCounter;
 
 	return bStuck;
 }
