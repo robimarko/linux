@@ -55,7 +55,7 @@ patternProperties:
           1:  MSM8996, speedbin 1
           2:  MSM8996, speedbin 2
           3-31:  unused
-        maximum: 0x7
+        maximum: 0xff
 
       clock-latency-ns: true
 
