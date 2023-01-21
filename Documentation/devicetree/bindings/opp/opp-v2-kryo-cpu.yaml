@@ -61,6 +61,17 @@ patternProperties:
 
       required-opps: true
 
+    patternProperties:
+      '^opp-microvolt-speed[0-9]-pvs[0-9]-v[0-9]$':
+        description: |
+          Assign a microvolt value to the opp hz based on the efuses value from
+          speedbin, pvs and version value read from the provided nvmem cell.
+        minItems: 1
+        maxItems: 8   # Should be enough regulators
+        items:
+          minItems: 1
+          maxItems: 3
+
     required:
       - opp-hz
 
@@ -75,6 +86,11 @@ then:
     '^opp-?[0-9]+$':
       required:
         - opp-supported-hw
+else:
+  patternProperties:
+    '^opp-?[0-9]+$':
+      patternProperties:
+        '^opp-microvolt-speed[0-9]-pvs[0-9]-v[0-9]$': false
 
 additionalProperties: false
 
