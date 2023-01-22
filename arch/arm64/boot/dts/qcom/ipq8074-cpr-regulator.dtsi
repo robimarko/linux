@@ -33,6 +33,46 @@
 		qcom,apm-threshold-voltage = <848000>;
 		vdd-supply = <&s3>;
 		qcom,voltage-step = <8000>;
+		nvmem-cells = <&cpr_efuse_speedbin>,
+			      <&cpr_efuse_revision>,
+			      <&cpr_efuse_misc_volt_adj>,
+			      <&cpr_efuse_init_voltage0>,
+			      <&cpr_efuse_init_voltage1>,
+			      <&cpr_efuse_init_voltage2>,
+			      <&cpr_efuse_init_voltage3>,
+			      <&cpr_efuse_quot0>,
+			      <&cpr_efuse_quot1>,
+			      <&cpr_efuse_quot2>,
+			      <&cpr_efuse_quot3>,
+			      <&cpr_efuse_ro_sel0>,
+			      <&cpr_efuse_ro_sel1>,
+			      <&cpr_efuse_ro_sel2>,
+			      <&cpr_efuse_ro_sel3>,
+			      <&cpr_efuse_quot1_offset>,
+			      <&cpr_efuse_quot2_offset>,
+			      <&cpr_efuse_quot3_offset>,
+			      <&cpr_efuse_boost_cfg>,
+			      <&cpr_efuse_boost_volt>;
+		nvmem-cell-names = "cpr_speed_bin",
+				   "cpr_fuse_revision",
+				   "cpr_misc_volt_adj",
+				   "cpr_init_voltage0",
+				   "cpr_init_voltage1",
+				   "cpr_init_voltage2",
+				   "cpr_init_voltage3",
+				   "cpr0_quotient0",
+				   "cpr0_quotient1",
+				   "cpr0_quotient2",
+				   "cpr0_quotient3",
+				   "cpr_ro_sel0",
+				   "cpr_ro_sel1",
+				   "cpr_ro_sel2",
+				   "cpr_ro_sel3",
+				   "cpr_quot1_offset",
+				   "cpr_quot2_offset",
+				   "cpr_quot3_offset",
+				   "cpr_boost_cfg",
+				   "cpr_boost_volt";
 
 		thread@0 {
 			qcom,cpr-thread-id = <0>;
