@@ -82,6 +82,10 @@
  */
 #define RTL822X_VND2_C22_REG(reg)		(0xa400 + 2 * (reg))
 
+#define RTL8221B_PHYCR1				0xa430
+#define RTL8221B_PHYCR1_ALDPS_EN		BIT(2)
+#define RTL8221B_PHYCR1_ALDPS_XTAL_OFF_EN	BIT(12)
+
 #define RTL8366RB_POWER_SAVE			0x15
 #define RTL8366RB_POWER_SAVE_ON			BIT(12)
 
@@ -889,6 +893,15 @@ static int rtl822xb_config_init(struct phy_device *phydev)
 		return ret;
 
 	ret = phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x6f11, 0x8020);
+	if (ret < 0)
+		return ret;
+
+	if (of_property_read_bool(phydev->mdio.dev.of_node, "realtek,aldps-enable"))
+		ret = phy_set_bits_mmd(phydev, MDIO_MMD_VEND1, RTL8221B_PHYCR1,
+				 RTL8221B_PHYCR1_ALDPS_EN | RTL8221B_PHYCR1_ALDPS_XTAL_OFF_EN);
+	else
+		ret = phy_clear_bits_mmd(phydev, MDIO_MMD_VEND1, RTL8221B_PHYCR1,
+				   RTL8221B_PHYCR1_ALDPS_EN | RTL8221B_PHYCR1_ALDPS_XTAL_OFF_EN);
 	if (ret < 0)
 		return ret;
 
