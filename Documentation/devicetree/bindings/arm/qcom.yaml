@@ -334,6 +334,7 @@ properties:
 
       - items:
           - enum:
+              - alfa,3000w
               - qcom,ipq5018-rdp432-c1
           - const: qcom,ipq5018
 
