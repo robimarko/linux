@@ -332,8 +332,8 @@ properties:
               - qcom,ipq4019-dk04.1-c1
           - const: qcom,ipq4019
 
-       - items:
-           - enum:
+      - items:
+          - enum:
               - qcom,ipq5018-rdp432-c1
           - const: qcom,ipq5018
 
