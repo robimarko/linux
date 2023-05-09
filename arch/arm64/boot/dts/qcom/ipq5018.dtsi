@@ -79,6 +79,30 @@
 		#size-cells = <2>;
 		ranges;
 
+		nss@40000000 {
+			no-map;
+			reg = <0x0 0x40000000 0x0 0x01000000>;
+		};
+
+		tzapp:tzapp@4a400000 {	/* TZAPPS */
+			no-map;
+		};
+
+		tzapp_data:tzapp_data@4a700000 {  /* TZAPP_DATA */
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
+		uboot@4a800000 {
+			no-map;
+			reg = <0x0 0x4a800000 0x0 0x00200000>;
+		};
+
+		sbl@4aa00000 {
+			no-map;
+			reg = <0x0 0x4aa00000 0x0 0x00100000>;
+		};
+
 		smem@4ab00000 {
 			compatible = "qcom,smem";
 			reg = <0x0 0x4ab00000 0x0 0x00100000>;
@@ -90,6 +114,11 @@
 		tz_region: tz@4ac00000 {
 			reg = <0x0 0x4ac00000 0x0 0x400000>;
 			no-map;
+		};
+
+		bt_region: bt@7000000 {
+			no-map;
+			reg = <0x0 0x07000000 0x0 0x58000>;
 		};
 	};
 
