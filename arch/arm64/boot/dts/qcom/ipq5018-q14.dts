@@ -1,0 +1,116 @@
+// SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause
+/*
+ * Motorola Q14
+ *
+ */
+
+/dts-v1/;
+
+#include "ipq5018.dtsi"
+
+/ {
+	model = "Motorola Q14";
+	compatible = "motorola,q14", "qcom,ipq5018";
+
+	aliases {
+		serial0 = &blsp1_uart1;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+};
+
+&uart1_pins {
+	pins = "gpio20", "gpio21";
+	function = "blsp0_uart0";
+};
+
+&blsp1_uart1 {
+	status = "okay";
+
+	pinctrl-0 = <&uart1_pins>;
+	pinctrl-names = "default";
+};
+
+&sleep_clk {
+	clock-frequency = <32000>;
+};
+
+&xo_board_clk {
+	clock-frequency = <24000000>;
+};
+
+&tlmm {
+	spi_0_pins: spi-0-state {
+		pins = "gpio10", "gpio11", "gpio12", "gpio13";
+		function = "blsp0_spi";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	emmc_pins: emmc-state {
+		clk-pins {
+			pins = "gpio9";
+			function = "sdc1_clk";
+			drive-strength = <8>;
+			bias-disable;
+		};
+
+		cmd-pins {
+			pins = "gpio8";
+			function = "sdc1_cmd";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		data-pins {
+			pins = "gpio4", "gpio5", "gpio6", "gpio7";
+			function = "sdc1_data";
+			drive-strength = <8>;
+			bias-disable;
+		};
+	};
+};
+
+&blsp1_spi1 {
+	status = "okay";
+
+	pinctrl-0 = <&spi_0_pins>;
+	pinctrl-names = "default";
+
+	flash@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0>;
+		compatible = "jedec,spi-nor";
+		spi-max-frequency = <50000000>;
+	};
+};
+
+&sdhc_1 {
+	status = "okay";
+
+	pinctrl-0 = <&emmc_pins>;
+	pinctrl-names = "default";
+};
+
+&pcie_x1phy {
+	status = "okay";
+};
+
+&pcie_x2phy {
+	status = "okay";
+};
+
+&pcie_x1 {
+	status = "okay";
+
+	perst-gpios = <&tlmm 18 GPIO_ACTIVE_LOW>;
+};
+
+&pcie_x2 {
+	status = "okay";
+
+	perst-gpios = <&tlmm 15 GPIO_ACTIVE_LOW>;
+};

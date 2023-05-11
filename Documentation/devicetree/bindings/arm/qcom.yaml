@@ -348,6 +348,7 @@ properties:
 
       - items:
           - enum:
+              - motorola,q14
               - qcom,ipq5018-rdp432-c2
           - const: qcom,ipq5018
 
