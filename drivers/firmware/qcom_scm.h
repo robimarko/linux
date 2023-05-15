@@ -136,6 +136,17 @@ extern int scm_legacy_call(struct device *dev, const struct qcom_scm_desc *desc,
 #define QCOM_SCM_WAITQ_RESUME			0x02
 #define QCOM_SCM_WAITQ_GET_WQ_CTX		0x03
 
+/*
+ * SCM command ids used in qti_scm_dload / qti_scm_sdi calls
+ *
+ * QCOM_SCM_FORCE_DLOAD_ID - Set the magic cookie(See Below)
+ * QCOM_SCM_CONFIG_HW_FOR_RAM_DUMP_ID - Used for SDI related calls
+ * QCOM_SCM_SET_DLOAD_FOR_SECURE_BOOT - Set the magic cookie in secure boot
+ */
+#define QCOM_SCM_FORCE_DLOAD_ID			0x10
+#define QCOM_SCM_CONFIG_HW_FOR_RAM_DUMP_ID	0x9
+#define QCOM_SCM_SET_DLOAD_FOR_SECURE_BOOT	0x14
+
 /* common error codes */
 #define QCOM_SCM_V2_EBUSY	-12
 #define QCOM_SCM_ENOMEM		-5
