@@ -459,8 +459,7 @@ static void qcom_scm_set_download_mode(bool enable)
 		ret = qcom_scm_io_writel(__scm->dload_mode_addr,
 				enable ? QCOM_SCM_BOOT_SET_DLOAD_MODE : 0);
 	} else {
-		dev_err(__scm->dev,
-			"No available mechanism for setting download mode\n");
+		ret = qti_scm_sdi();
 	}
 
 	if (ret)
