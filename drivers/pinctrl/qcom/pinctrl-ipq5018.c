@@ -600,7 +600,7 @@ static const char * const gpio_groups[] = {
 	"gpio43", "gpio44", "gpio45", "gpio46",
 };
 
-static const struct msm_function ipq5018_functions[] = {
+static const struct pinfunction ipq5018_functions[] = {
 	MSM_PIN_FUNCTION(atest_char),
 	MSM_PIN_FUNCTION(audio_pdm0),
 	MSM_PIN_FUNCTION(audio_pdm1),
