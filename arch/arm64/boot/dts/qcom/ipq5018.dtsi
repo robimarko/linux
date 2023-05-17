@@ -148,6 +148,32 @@
 		#size-cells = <1>;
 		ranges = <0 0 0 0xffffffff>;
 
+		pcie_x1phy: phy@7e000{
+			compatible = "qcom,ipq5018-uniphy-gen2x1-pcie-phy";
+			reg = <0x0007e000 0x800>;
+			#phy-cells = <0>;
+			clocks = <&gcc GCC_PCIE1_PIPE_CLK>;
+			clock-names = "pipe";
+
+			resets = <&gcc GCC_PCIE1_PHY_BCR>,
+				 <&gcc GCC_PCIE1PHY_PHY_BCR>;
+			reset-names = "phy", "common";
+			status = "disabled";
+		};
+
+		pcie_x2phy: phy@86000{
+			compatible = "qcom,ipq5018-uniphy-gen2x2-pcie-phy";
+			reg = <0x00086000 0x1000>;
+			#phy-cells = <0>;
+			clocks = <&gcc GCC_PCIE0_PIPE_CLK>;
+			clock-names = "pipe";
+
+			resets = <&gcc GCC_PCIE0_PHY_BCR>,
+				 <&gcc GCC_PCIE0PHY_PHY_BCR>;
+			reset-names = "phy", "common";
+			status = "disabled";
+		};
+
 		tlmm: pinctrl@1000000 {
 			compatible = "qcom,ipq5018-tlmm";
 			reg = <0x01000000 0x300000>;
