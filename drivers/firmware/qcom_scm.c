@@ -1525,6 +1525,14 @@ static int qcom_scm_probe(struct platform_device *pdev)
 	if (download_mode)
 		qcom_scm_set_download_mode(true);
 
+	/* IPQ5018 seems to have SDI (Secure Debug Image) enabled by default
+	 * which will prevent normal reboot causing the board to hang after
+	 * making the reboot call.
+	 * So, make a call to SCM to disable SDI.
+	 */
+	if (of_machine_is_compatible("qcom,ipq5018"))
+		qcom_scm_disable_sdi();
+
 	return 0;
 }
 
