@@ -1,0 +1,265 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-3-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/remoteproc/qcom,multipd-pil.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Qualcomm Multipd Secure Peripheral Image Loader
+
+maintainers:
+  - Bjorn Andersson <andersson@kernel.org>
+  - Mathieu Poirier <mathieu.poirier@linaro.org>
+
+description:
+  Multipd Peripheral Image Loader loads firmware and boots Q6 pd, WCSS pd
+  remoteproc's on the Qualcomm IPQ5018, IPQ9574 SoC. Pd means protection
+  domain. It's similar to process in Linux. Here QDSP6 processor runs each
+  wifi radio functionality on a separate process. One process can't access
+  other process resources, so this is termed as PD i.e protection domain.
+
+properties:
+  compatible:
+    enum:
+      - qcom,ipq5018-q6-mpd
+      - qcom,ipq9574-q6-mpd
+
+  reg:
+    maxItems: 1
+
+  firmware-name:
+    $ref: /schemas/types.yaml#/definitions/string-array
+    description: Firmware name of the Hexagon core
+
+  interrupts-extended:
+    items:
+      - description: Watchdog interrupt
+      - description: Fatal interrupt
+      - description: Ready interrupt
+      - description: Handover interrupt
+      - description: Stop acknowledge interrupt
+
+  interrupt-names:
+    items:
+      - const: wdog
+      - const: fatal
+      - const: ready
+      - const: handover
+      - const: stop-ack
+
+  qcom,smem-states:
+    $ref: /schemas/types.yaml#/definitions/phandle-array
+    description: States used by the AP to signal the remote processor
+    items:
+      - description: Shutdown Q6
+      - description: Stop Q6
+
+  qcom,smem-state-names:
+    description:
+      Names of the states used by the AP to signal the remote processor
+    items:
+      - const: shutdown
+      - const: stop
+
+  memory-region:
+    items:
+      - description: Q6 pd reserved region
+
+  glink-edge:
+    $ref: /schemas/remoteproc/qcom,glink-edge.yaml#
+    description:
+      Qualcomm G-Link subnode which represents communication edge, channels
+      and devices related to the Modem.
+
+patternProperties:
+  "^pd-1|pd-2|pd-3":
+    type: object
+    description:
+      In Multipd model, WCSS pd depends on Q6 pd i.e Q6 pd should be up before
+      WCSS. It can be achieved by keeping wcss pd node as subnode of Q6
+      device node.
+
+    properties:
+      compatible:
+        enum:
+          - qcom,ipq5018-wcss-ahb-mpd
+          - qcom,ipq9574-wcss-ahb-mpd
+          - qcom,ipq5018-wcss-pcie-mpd
+
+      firmware-name:
+        $ref: /schemas/types.yaml#/definitions/string-array
+        items:
+          - description: Firmware name of the Hexagon core
+
+      interrupts-extended:
+        items:
+          - description: Fatal interrupt
+          - description: Ready interrupt
+          - description: Spawn acknowledge interrupt
+          - description: Stop acknowledge interrupt
+
+      interrupt-names:
+        items:
+          - const: fatal
+          - const: ready
+          - const: spawn-ack
+          - const: stop-ack
+
+      qcom,smem-states:
+        $ref: /schemas/types.yaml#/definitions/phandle-array
+        description: States used by the AP to signal the remote processor
+        items:
+          - description: Shutdown WCSS pd
+          - description: Stop WCSS pd
+          - description: Spawn WCSS pd
+
+      qcom,smem-state-names:
+        description:
+          Names of the states used by the AP to signal the remote processor
+        items:
+          - const: shutdown
+          - const: stop
+          - const: spawn
+
+    required:
+      - compatible
+      - firmware-name
+      - interrupts-extended
+      - interrupt-names
+      - qcom,smem-states
+      - qcom,smem-state-names
+
+    unevaluatedProperties: false
+
+required:
+  - compatible
+  - firmware-name
+  - reg
+  - interrupts-extended
+  - interrupt-names
+  - qcom,smem-states
+  - qcom,smem-state-names
+  - memory-region
+
+allOf:
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - qcom,ipq5018-q6-mpd
+    then:
+      properties:
+        firmware-name:
+          items:
+            - const: IPQ5018/q6_fw.mdt
+            - const: IPQ5018/m3_fw.mdt
+            - const: qcn6122/m3_fw.mdt
+
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - qcom,ipq9574-q6-mpd
+    then:
+      properties:
+        firmware-name:
+          items:
+            - const: IPQ9574/q6_fw.mdt
+            - const: IPQ9574/m3_fw.mdt
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/interrupt-controller/arm-gic.h>
+    q6v5_wcss: remoteproc@cd00000 {
+      compatible = "qcom,ipq5018-q6-mpd";
+      reg = <0x0cd00000 0x4040>;
+      firmware-name = "IPQ5018/q6_fw.mdt",
+                      "IPQ5018/m3_fw.mdt",
+                      "qcn6122/m3_fw.mdt";
+      interrupts-extended = <&intc GIC_SPI 291 IRQ_TYPE_EDGE_RISING>,
+                            <&wcss_smp2p_in 0 0>,
+                            <&wcss_smp2p_in 1 0>,
+                            <&wcss_smp2p_in 2 0>,
+                            <&wcss_smp2p_in 3 0>;
+      interrupt-names = "wdog",
+                        "fatal",
+                        "ready",
+                        "handover",
+                        "stop-ack";
+
+      qcom,smem-states = <&wcss_smp2p_out 0>,
+                         <&wcss_smp2p_out 1>;
+      qcom,smem-state-names = "shutdown",
+                              "stop";
+
+      memory-region = <&q6_region>;
+
+      glink-edge {
+        interrupts = <GIC_SPI 179 IRQ_TYPE_EDGE_RISING>;
+        label = "rtr";
+        qcom,remote-pid = <1>;
+        mboxes = <&apcs_glb 8>;
+      };
+
+      pd-1 {
+        compatible = "qcom,ipq5018-wcss-ahb-mpd";
+        firmware-name = "IPQ5018/q6_fw.mdt";
+        interrupts-extended = <&wcss_smp2p_in 8 0>,
+                              <&wcss_smp2p_in 9 0>,
+                              <&wcss_smp2p_in 12 0>,
+                              <&wcss_smp2p_in 11 0>;
+        interrupt-names = "fatal",
+                          "ready",
+                          "spawn-ack",
+                          "stop-ack";
+        qcom,smem-states = <&wcss_smp2p_out 8>,
+                           <&wcss_smp2p_out 9>,
+                           <&wcss_smp2p_out 10>;
+        qcom,smem-state-names = "shutdown",
+                                "stop",
+                                "spawn";
+      };
+
+      pd-2 {
+        compatible = "qcom,ipq5018-wcss-pcie-mpd";
+        firmware-name = "IPQ5018/q6_fw.mdt";
+        interrupts-extended = <&wcss_smp2p_in 16 0>,
+                              <&wcss_smp2p_in 17 0>,
+                              <&wcss_smp2p_in 20 0>,
+                              <&wcss_smp2p_in 19 0>;
+        interrupt-names = "fatal",
+                          "ready",
+                          "spawn-ack",
+                          "stop-ack";
+
+        qcom,smem-states = <&wcss_smp2p_out 16>,
+                           <&wcss_smp2p_out 17>,
+                           <&wcss_smp2p_out 18>;
+        qcom,smem-state-names = "shutdown",
+                                "stop",
+                                "spawn";
+      };
+
+      pd-3 {
+        compatible = "qcom,ipq5018-wcss-pcie-mpd";
+        firmware-name = "IPQ5018/q6_fw.mdt";
+        interrupts-extended = <&wcss_smp2p_in 24 0>,
+                              <&wcss_smp2p_in 25 0>,
+                              <&wcss_smp2p_in 28 0>,
+                              <&wcss_smp2p_in 27 0>;
+        interrupt-names = "fatal",
+                          "ready",
+                          "spawn-ack",
+                          "stop-ack";
+
+        qcom,smem-states = <&wcss_smp2p_out 24>,
+                           <&wcss_smp2p_out 25>,
+                           <&wcss_smp2p_out 26>;
+        qcom,smem-state-names = "shutdown",
+                                "stop",
+                                "spawn";
+       };
+    };
