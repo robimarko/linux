@@ -721,6 +721,120 @@ disable_clk:
 EXPORT_SYMBOL_GPL(qcom_scm_pas_shutdown);
 
 /**
+ * qti_scm_int_radio_powerup - Bring up WCSS AHB userpd
+ *
+ * @peripheral:	peripheral id
+ *
+ * Return 0 on success.
+ */
+int qti_scm_int_radio_powerup(u32 peripheral)
+{
+	int ret;
+	struct qcom_scm_desc desc = {
+		.svc = QCOM_SCM_PD_LOAD_SVC_ID,
+		.cmd = QCOM_SCM_INT_RAD_PWR_UP_CMD_ID,
+		.arginfo = QCOM_SCM_ARGS(1),
+		.args[0] = peripheral,
+		.owner = ARM_SMCCC_OWNER_SIP,
+	};
+	struct qcom_scm_res res;
+
+	ret = qcom_scm_clk_enable();
+	if (ret)
+		return ret;
+
+	ret = qcom_scm_bw_enable();
+	if (ret)
+		return ret;
+
+	ret = qcom_scm_call(__scm->dev, &desc, &res);
+	qcom_scm_bw_disable();
+	qcom_scm_clk_disable();
+
+	return ret ? : res.result[0];
+}
+EXPORT_SYMBOL(qti_scm_int_radio_powerup);
+
+/**
+ * qti_scm_int_radio_powerdown() - Shut down WCSS AHB userpd
+ *
+ * @peripheral: peripheral id
+ *
+ * Returns 0 on success.
+ */
+int qti_scm_int_radio_powerdown(u32 peripheral)
+{
+	int ret;
+	struct qcom_scm_desc desc = {
+		.svc = QCOM_SCM_PD_LOAD_SVC_ID,
+		.cmd = QCOM_SCM_INT_RAD_PWR_DN_CMD_ID,
+		.arginfo = QCOM_SCM_ARGS(1),
+		.args[0] = peripheral,
+		.owner = ARM_SMCCC_OWNER_SIP,
+	};
+	struct qcom_scm_res res;
+
+	ret = qcom_scm_clk_enable();
+	if (ret)
+		return ret;
+
+	ret = qcom_scm_bw_enable();
+	if (ret)
+		return ret;
+
+	ret = qcom_scm_call(__scm->dev, &desc, &res);
+	qcom_scm_bw_disable();
+	qcom_scm_clk_disable();
+
+	return ret ? : res.result[0];
+}
+EXPORT_SYMBOL(qti_scm_int_radio_powerdown);
+
+/**
+ * qti_scm_pdseg_memcpy_v2() - copy userpd PIL segments data to dma blocks
+ *
+ * @peripheral:		peripheral id
+ * @phno:		program header no
+ * @dma:		handle of dma region
+ * @seg_cnt:		no of dma blocks
+ *
+ * Returns 0 if trustzone successfully loads userpd PIL segments from dma
+ * blocks to DDR
+ */
+int qti_scm_pdseg_memcpy_v2(u32 peripheral, int phno, dma_addr_t dma,
+			    int seg_cnt)
+{
+	int ret;
+	struct qcom_scm_desc desc = {
+		.svc = QCOM_SCM_PD_LOAD_SVC_ID,
+		.cmd = QCOM_SCM_PD_LOAD_V2_CMD_ID,
+		.arginfo = QCOM_SCM_ARGS(4, QCOM_SCM_VAL, QCOM_SCM_VAL,
+						QCOM_SCM_RW, QCOM_SCM_VAL),
+		.args[0] = peripheral,
+		.args[1] = phno,
+		.args[2] = dma,
+		.args[3] = seg_cnt,
+		.owner = ARM_SMCCC_OWNER_SIP,
+	};
+	struct qcom_scm_res res;
+
+	ret = qcom_scm_clk_enable();
+	if (ret)
+		return ret;
+
+	ret = qcom_scm_bw_enable();
+	if (ret)
+		return ret;
+
+	ret = qcom_scm_call(__scm->dev, &desc, &res);
+	qcom_scm_bw_disable();
+	qcom_scm_clk_disable();
+
+	return ret ? : res.result[0];
+}
+EXPORT_SYMBOL(qti_scm_pdseg_memcpy_v2);
+
+/**
  * qcom_scm_pas_supported() - Check if the peripheral authentication service is
  *			      available for the given peripherial
  * @peripheral:	peripheral id

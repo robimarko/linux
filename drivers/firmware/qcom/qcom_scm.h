@@ -134,6 +134,12 @@ int scm_legacy_call(struct device *dev, const struct qcom_scm_desc *desc,
 #define QCOM_SCM_SMMU_CONFIG_ERRATA1		0x03
 #define QCOM_SCM_SMMU_CONFIG_ERRATA1_CLIENT_ALL	0x02
 
+#define QCOM_SCM_PD_LOAD_SVC_ID			0x2
+#define QCOM_SCM_PD_LOAD_CMD_ID			0x16
+#define QCOM_SCM_PD_LOAD_V2_CMD_ID		0x19
+#define QCOM_SCM_INT_RAD_PWR_UP_CMD_ID		0x17
+#define QCOM_SCM_INT_RAD_PWR_DN_CMD_ID		0x18
+
 #define QCOM_SCM_SVC_WAITQ			0x24
 #define QCOM_SCM_WAITQ_RESUME			0x02
 #define QCOM_SCM_WAITQ_GET_WQ_CTX		0x03
