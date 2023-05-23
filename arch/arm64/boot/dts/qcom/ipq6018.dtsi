@@ -1186,6 +1186,7 @@
 
 		wcss_smp2p_out: master-kernel {
 			qcom,entry-name = "master-kernel";
+			qcom,smp2p-feature-ssr-ack;
 			#qcom,smem-state-cells = <1>;
 		};
 
