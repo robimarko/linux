@@ -254,4 +254,13 @@ config QCOM_INLINE_CRYPTO_ENGINE
 	tristate
 	select QCOM_SCM
 
+config QTI_TZ_LOG
+	tristate "Trust Zone (TZ) Log Driver"
+	depends on DEBUG_FS
+	depends on QCOM_SCM
+	help
+	  This option enables a driver with a debugfs interface for messages
+	  produced by the Secure code (Trust zone). These messages provide
+	  diagnostic information about TZ operation.
+
 endmenu
