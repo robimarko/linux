@@ -207,6 +207,16 @@
 		};
 	};
 
+	tzlog: qti,tzlog {
+		compatible = "qti,tzlog";
+		interrupts = <GIC_SPI 244 IRQ_TYPE_EDGE_RISING>;
+		qti,tz-diag-buf-size = <0x2000>;
+		qti,tz-ring-off = <7>;
+		qti,tz-log-pos-info-off = <579>;
+		qti,hvc-enabled;
+		qti,get-smmu-state;
+	};
+
 	soc: soc@0 {
 		#address-cells = <1>;
 		#size-cells = <1>;
