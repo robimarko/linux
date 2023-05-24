@@ -104,6 +104,9 @@ extern int scm_legacy_call(struct device *dev, const struct qcom_scm_desc *desc,
 
 #define QCOM_SCM_SVC_INFO		0x06
 #define QCOM_SCM_INFO_IS_CALL_AVAIL	0x01
+#define QTI_SCM_TZ_DIAG_CMD		0x02
+#define QTI_SCM_HVC_DIAG_CMD		0x07
+#define QTI_SCM_SMMUSTATE_CMD		0x19
 
 #define QCOM_SCM_SVC_MP				0x0c
 #define QCOM_SCM_MP_RESTORE_SEC_CFG		0x02
