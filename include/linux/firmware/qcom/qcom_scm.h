@@ -137,4 +137,8 @@ static inline int qcom_scm_qseecom_app_send(u32 app_id, void *req,
 
 #endif /* CONFIG_QCOM_QSEECOM */
 
+extern int qti_scm_tz_log(void *ker_buf, u32 buf_len);
+extern int qti_scm_hvc_log(void *ker_buf, u32 buf_len);
+extern int qti_scm_get_smmustate(void);
+
 #endif

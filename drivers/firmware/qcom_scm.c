@@ -41,6 +41,8 @@ struct qcom_scm {
 	int scm_vote_count;
 
 	u64 dload_mode_addr;
+	u32 hvc_log_cmd_id;
+	u32 smmu_state_cmd_id;
 };
 
 struct qcom_scm_current_perm_info {
@@ -1733,6 +1735,98 @@ static int qcom_scm_qseecom_init(struct qcom_scm *scm)
 
 #endif /* CONFIG_QCOM_QSEECOM */
 
+static int qti_scm_tz_hvc_log(struct device *dev, u32 svc_id, u32 cmd_id,
+			      void *ker_buf, u32 buf_len)
+{
+	int ret;
+	dma_addr_t dma_buf;
+	struct qcom_scm_desc desc = {
+		.svc = svc_id,
+		.cmd = cmd_id,
+		.arginfo = QCOM_SCM_ARGS(2, QCOM_SCM_RW, QCOM_SCM_VAL),
+		.owner = ARM_SMCCC_OWNER_SIP,
+	};
+	struct qcom_scm_res res;
+
+	dma_buf = dma_map_single(dev, ker_buf, buf_len, DMA_FROM_DEVICE);
+
+	ret = dma_mapping_error(dev, dma_buf);
+	if (ret != 0) {
+		pr_err("DMA Mapping Error : %d\n", ret);
+		return ret;
+	}
+
+	desc.args[0] = dma_buf;
+	desc.args[1] = buf_len;
+
+	dma_unmap_single(dev, dma_buf, buf_len, DMA_FROM_DEVICE);
+
+	ret = qcom_scm_call(dev, &desc, &res);
+
+	return ret ? : res.result[0];
+}
+
+/**
+ * qti_scm_tz_log() - Get trustzone diag log
+ * ker_buf: kernel buffer to store the diag log
+ * buf_len: kernel buffer length
+ *
+ * Return negative errno on failure or 0 on success. Diag log will
+ * be present in the kernel buffer passed.
+ */
+int qti_scm_tz_log(void *ker_buf, u32 buf_len)
+{
+	return qti_scm_tz_hvc_log(__scm->dev, QCOM_SCM_SVC_INFO,
+				  QTI_SCM_TZ_DIAG_CMD, ker_buf, buf_len);
+}
+EXPORT_SYMBOL(qti_scm_tz_log);
+
+/**
+ * qti_scm_hvc_log() - Get hypervisor diag log
+ * ker_buf: kernel buffer to store the diag log
+ * buf_len: kernel buffer length
+ *
+ * Return negative errno on failure or 0 on success. Diag log will
+ * be present in the kernel buffer passed.
+ */
+int qti_scm_hvc_log(void *ker_buf, u32 buf_len)
+{
+	return qti_scm_tz_hvc_log(__scm->dev, QCOM_SCM_SVC_INFO,
+				  __scm->hvc_log_cmd_id, ker_buf, buf_len);
+}
+EXPORT_SYMBOL(qti_scm_hvc_log);
+
+/**
+ * qti_scm_get_smmustate () - Get SMMU state
+ *
+ * Returns 0 - SMMU_DISABLE_NONE
+ *	   1 - SMMU_DISABLE_S2
+ *	   2 - SMMU_DISABLE_ALL on success.
+ *	  -1 - Failure
+ */
+int qti_scm_get_smmustate(void)
+{
+	int ret;
+	struct qcom_scm_desc desc = {
+		.svc = QCOM_SCM_SVC_BOOT,
+		.cmd = __scm->smmu_state_cmd_id,
+		.arginfo = QCOM_SCM_ARGS(0),
+		.owner = ARM_SMCCC_OWNER_SIP,
+	};
+	struct qcom_scm_res res;
+
+	ret = qcom_scm_clk_enable();
+	if (ret)
+		return ret;
+
+	ret = qcom_scm_call(__scm->dev, &desc, &res);
+
+	qcom_scm_clk_disable();
+
+	return ret ? : res.result[0];
+}
+EXPORT_SYMBOL(qti_scm_get_smmustate);
+
 /**
  * qcom_scm_is_available() - Checks if SCM is available
  */
@@ -1841,6 +1935,16 @@ static int qcom_scm_probe(struct platform_device *pdev)
 	scm->bus_clk = devm_clk_get_optional(&pdev->dev, "bus");
 	if (IS_ERR(scm->bus_clk))
 		return PTR_ERR(scm->bus_clk);
+
+	ret = of_property_read_u32(pdev->dev.of_node, "hvc-log-cmd-id",
+				   &scm->hvc_log_cmd_id);
+	if (ret)
+		scm->hvc_log_cmd_id = QTI_SCM_HVC_DIAG_CMD;
+
+	ret = of_property_read_u32(pdev->dev.of_node, "smmu-state-cmd-id",
+				   &scm->smmu_state_cmd_id);
+	if (ret)
+		scm->smmu_state_cmd_id = QTI_SCM_SMMUSTATE_CMD;
 
 	scm->reset.ops = &qcom_scm_pas_reset_ops;
 	scm->reset.nr_resets = 1;
