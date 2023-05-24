@@ -122,4 +122,8 @@ extern int qcom_scm_lmh_dcvsh(u32 payload_fn, u32 payload_reg, u32 payload_val,
 extern int qcom_scm_lmh_profile_change(u32 profile_id);
 extern bool qcom_scm_lmh_dcvsh_available(void);
 
+extern int qti_scm_tz_log(void *ker_buf, u32 buf_len);
+extern int qti_scm_hvc_log(void *ker_buf, u32 buf_len);
+extern int qti_scm_get_smmustate(void);
+
 #endif
