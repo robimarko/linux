@@ -103,6 +103,7 @@
 	firmware {
 		scm {
 			compatible = "qcom,scm-ipq8074", "qcom,scm";
+			qcom,dload-mode = <&tcsr 0x6100>;
 		};
 	};
 
@@ -380,6 +381,11 @@
 			compatible = "qcom,tcsr-mutex";
 			reg = <0x01905000 0x20000>;
 			#hwlock-cells = <1>;
+		};
+
+		tcsr: syscon@1937000 {
+			compatible = "qcom,tcsr-ipq8074", "syscon";
+			reg = <0x01937000 0x21000>;
 		};
 
 		spmi_bus: spmi@200f000 {
