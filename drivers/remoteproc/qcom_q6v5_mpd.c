@@ -610,6 +610,16 @@ static const struct wcss_data q6_ipq5018_res_init = {
 	.pasid = MPD_WCNSS_PAS_ID,
 };
 
+static const struct wcss_data q6_ipq6018_res_init = {
+	.init_irq = qcom_q6v5_init,
+	.crash_reason_smem = WCSS_CRASH_REASON,
+	.ssr_name = "q6wcss",
+	.ops = &q6_wcss_ipq5018_ops,
+	.version = Q6_IPQ,
+	.glink_subdev_required = true,
+	.pasid = WCNSS_PAS_ID,
+};
+
 static const struct wcss_data q6_ipq9574_res_init = {
 	.init_irq = qcom_q6v5_init,
 	.crash_reason_smem = WCSS_CRASH_REASON,
@@ -632,6 +642,14 @@ static const struct wcss_data wcss_ahb_ipq5018_res_init = {
 	.powerdown_scm = qti_scm_int_radio_powerdown,
 };
 
+static const struct wcss_data wcss_ahb_ipq6018_res_init = {
+	.crash_reason_smem = WCSS_CRASH_REASON,
+	.ops = &wcss_ahb_pcie_ipq5018_ops,
+	.version = WCSS_AHB_IPQ,
+	.pasid = WCNSS_PAS_ID,
+	.mdt_load_sec = qcom_mdt_load,
+};
+
 static const struct wcss_data wcss_ahb_ipq9574_res_init = {
 	.crash_reason_smem = WCSS_CRASH_REASON,
 	.ops = &wcss_ahb_pcie_ipq5018_ops,
@@ -652,9 +670,12 @@ static const struct wcss_data wcss_pcie_ipq5018_res_init = {
 
 static const struct of_device_id q6_wcss_of_match[] = {
 	{ .compatible = "qcom,ipq5018-q6-mpd", .data = &q6_ipq5018_res_init },
+	{ .compatible = "qcom,ipq6018-q6-mpd", .data = &q6_ipq6018_res_init },
 	{ .compatible = "qcom,ipq9574-q6-mpd", .data = &q6_ipq9574_res_init },
 	{ .compatible = "qcom,ipq5018-wcss-ahb-mpd",
 		.data = &wcss_ahb_ipq5018_res_init },
+	{ .compatible = "qcom,ipq6018-wcss-ahb-mpd",
+		.data = &wcss_ahb_ipq6018_res_init },
 	{ .compatible = "qcom,ipq9574-wcss-ahb-mpd",
 		.data = &wcss_ahb_ipq9574_res_init },
 	{ .compatible = "qcom,ipq5018-wcss-pcie-mpd",
