@@ -193,6 +193,10 @@
 	};
 };
 
+&wifi {
+	status = "okay";
+};
+
 &soc {
 	dp1: dp1 {
 		device_type = "network";
