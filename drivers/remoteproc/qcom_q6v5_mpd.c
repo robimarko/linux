@@ -65,6 +65,7 @@ struct q6_wcss {
 	enum q6_wcss_state state;
 	const struct wcss_data *desc;
 	const char **firmware;
+	struct clk *prng_clk;
 };
 
 struct wcss_data {
@@ -119,6 +120,14 @@ static int q6_wcss_start(struct rproc *rproc)
 	struct rproc *upd_rproc;
 	struct q6_wcss *upd_wcss;
 	const struct wcss_data *desc = wcss->desc;
+
+	if (wcss->prng_clk) {
+		ret = clk_prepare_enable(wcss->prng_clk);
+		if (ret) {
+			dev_err(wcss->dev, "PRNG clock enable failed\n");
+			return ret;
+		}
+	}
 
 	qcom_q6v5_prepare(&wcss->q6);
 
@@ -206,6 +215,10 @@ static int q6_wcss_stop(struct rproc *rproc)
 		dev_err(wcss->dev, "not able to shutdown\n");
 		return ret;
 	}
+
+	if (wcss->prng_clk)
+		clk_disable_unprepare(wcss->prng_clk);
+
 	qcom_q6v5_unprepare(&wcss->q6);
 
 	return 0;
@@ -545,6 +558,16 @@ static int q6_wcss_probe(struct platform_device *pdev)
 	wcss->desc = desc;
 	wcss->firmware = firmware;
 
+	/*
+	 * IPQ8074 and IPQ6018 require the PRNG clock to in order to
+	 * boot up Q6.
+	 */
+	wcss->prng_clk = devm_clk_get_optional(&pdev->dev, "prng");
+	if (IS_ERR(wcss->prng_clk)) {
+		dev_err(&pdev->dev, "Failed to get prng clock\n");
+		return PTR_ERR(wcss->prng_clk);
+	}
+
 	ret = q6_alloc_memory_region(wcss);
 	if (ret)
 		goto free_rproc;
@@ -610,6 +633,16 @@ static const struct wcss_data q6_ipq5018_res_init = {
 	.pasid = MPD_WCNSS_PAS_ID,
 };
 
+static const struct wcss_data q6_ipq8074_res_init = {
+	.init_irq = qcom_q6v5_init,
+	.crash_reason_smem = WCSS_CRASH_REASON,
+	.ssr_name = "q6wcss",
+	.ops = &q6_wcss_ipq5018_ops,
+	.version = Q6_IPQ,
+	.glink_subdev_required = true,
+	.pasid = WCNSS_PAS_ID,
+};
+
 static const struct wcss_data q6_ipq9574_res_init = {
 	.init_irq = qcom_q6v5_init,
 	.crash_reason_smem = WCSS_CRASH_REASON,
@@ -652,6 +685,7 @@ static const struct wcss_data wcss_pcie_ipq5018_res_init = {
 
 static const struct of_device_id q6_wcss_of_match[] = {
 	{ .compatible = "qcom,ipq5018-q6-mpd", .data = &q6_ipq5018_res_init },
+	{ .compatible = "qcom,ipq8074-q6-mpd", .data = &q6_ipq8074_res_init },
 	{ .compatible = "qcom,ipq9574-q6-mpd", .data = &q6_ipq9574_res_init },
 	{ .compatible = "qcom,ipq5018-wcss-ahb-mpd",
 		.data = &wcss_ahb_ipq5018_res_init },
