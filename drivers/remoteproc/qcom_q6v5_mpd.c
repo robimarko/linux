@@ -685,6 +685,7 @@ static const struct wcss_data wcss_pcie_ipq5018_res_init = {
 
 static const struct of_device_id q6_wcss_of_match[] = {
 	{ .compatible = "qcom,ipq5018-q6-mpd", .data = &q6_ipq5018_res_init },
+	{ .compatible = "qcom,ipq6018-q6-mpd", .data = &q6_ipq8074_res_init },
 	{ .compatible = "qcom,ipq8074-q6-mpd", .data = &q6_ipq8074_res_init },
 	{ .compatible = "qcom,ipq9574-q6-mpd", .data = &q6_ipq9574_res_init },
 	{ .compatible = "qcom,ipq5018-wcss-ahb-mpd",
