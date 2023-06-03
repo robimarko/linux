@@ -699,11 +699,10 @@
 		};
 
 		q6v5_wcss: remoteproc@cd00000 {
-			compatible = "qcom,ipq6018-wcss-pil";
-			reg = <0x0 0x0cd00000 0x0 0x4040>,
-			      <0x0 0x004ab000 0x0 0x20>;
-			reg-names = "qdsp6",
-				    "rmb";
+			compatible = "qcom,ipq6018-q6-mpd";
+			reg = <0x0 0x0cd00000 0x0 0x4040>;
+			firmware-name = "IPQ6018/q6_fw.mdt",
+					"IPQ6018/m3_fw.mdt";
 			interrupts-extended = <&intc GIC_SPI 325 IRQ_TYPE_EDGE_RISING>,
 					      <&wcss_smp2p_in 0 0>,
 					      <&wcss_smp2p_in 1 0>,
@@ -715,18 +714,8 @@
 					  "handover",
 					  "stop-ack";
 
-			resets = <&gcc GCC_WCSSAON_RESET>,
-				 <&gcc GCC_WCSS_BCR>,
-				 <&gcc GCC_WCSS_Q6_BCR>;
-
-			reset-names = "wcss_aon_reset",
-				      "wcss_reset",
-				      "wcss_q6_reset";
-
 			clocks = <&gcc GCC_PRNG_AHB_CLK>;
 			clock-names = "prng";
-
-			qcom,halt-regs = <&tcsr 0x18000 0x1b000 0xe000>;
 
 			qcom,smem-states = <&wcss_smp2p_out 0>,
 					   <&wcss_smp2p_out 1>;
