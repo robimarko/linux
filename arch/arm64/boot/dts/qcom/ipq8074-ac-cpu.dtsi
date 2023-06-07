@@ -30,12 +30,6 @@
 			hysteresis = <2000>;
 			type = "passive";
 		};
-
-		cpu0_crit: cpu_crit {
-			temperature = <110000>;
-			hysteresis = <1000>;
-			type = "critical";
-		};
 	};
 
 	cooling-maps {
@@ -55,12 +49,6 @@
 			temperature = <95000>;
 			hysteresis = <2000>;
 			type = "passive";
-		};
-
-		cpu1_crit: cpu_crit {
-			temperature = <110000>;
-			hysteresis = <1000>;
-			type = "critical";
 		};
 	};
 
@@ -82,12 +70,6 @@
 			hysteresis = <2000>;
 			type = "passive";
 		};
-
-		cpu2_crit: cpu_crit {
-			temperature = <110000>;
-			hysteresis = <1000>;
-			type = "critical";
-		};
 	};
 
 	cooling-maps {
@@ -108,12 +90,6 @@
 			hysteresis = <2000>;
 			type = "passive";
 		};
-
-		cpu3_crit: cpu_crit {
-			temperature = <110000>;
-			hysteresis = <1000>;
-			type = "critical";
-		};
 	};
 
 	cooling-maps {
@@ -133,12 +109,6 @@
 			temperature = <95000>;
 			hysteresis = <2000>;
 			type = "passive";
-		};
-
-		cluster_crit: cluster_crit {
-			temperature = <110000>;
-			hysteresis = <1000>;
-			type = "critical";
 		};
 	};
 
