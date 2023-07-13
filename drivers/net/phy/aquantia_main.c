@@ -12,6 +12,7 @@
 #include <linux/delay.h>
 #include <linux/bitfield.h>
 #include <linux/phy.h>
+#include <linux/firmware.h>
 
 #include "aquantia.h"
 
@@ -100,6 +101,23 @@
 #define VEND1_GLOBAL_FW_ID_MAJOR		GENMASK(15, 8)
 #define VEND1_GLOBAL_FW_ID_MINOR		GENMASK(7, 0)
 
+#define VEND1_GLOBAL_MAILBOX_INTERFACE1		0x0200
+#define VEND1_GLOBAL_MAILBOX_INTERFACE1_EXECUTE		BIT(15)
+#define VEND1_GLOBAL_MAILBOX_INTERFACE1_WRITE		BIT(14)
+#define VEND1_GLOBAL_MAILBOX_INTERFACE1_CRC_RESET	BIT(12)
+#define VEND1_GLOBAL_MAILBOX_INTERFACE1_BUSY		BIT(8)
+
+#define VEND1_GLOBAL_MAILBOX_INTERFACE2		0x0201
+#define VEND1_GLOBAL_MAILBOX_INTERFACE3		0x0202
+#define VEND1_GLOBAL_MAILBOX_INTERFACE4		0x0203
+#define VEND1_GLOBAL_MAILBOX_INTERFACE5		0x0204
+#define VEND1_GLOBAL_MAILBOX_INTERFACE6		0x0205
+
+#define VEND1_GLOBAL_CONTROL2			0xc001
+#define VEND1_GLOBAL_CONTROL2_UP_RUN_STALL_RST	BIT(15)
+#define VEND1_GLOBAL_CONTROL2_UP_RUN_STALL_OVD	BIT(6)
+#define VEND1_GLOBAL_CONTROL2_UP_RUN_STALL	BIT(0)
+
 #define VEND1_GLOBAL_GEN_STAT2			0xc831
 #define VEND1_GLOBAL_GEN_STAT2_OP_IN_PROG	BIT(15)
 
@@ -179,6 +197,26 @@
 #define AQUANTIA_VND1_GSYSCFG_5G		3
 #define AQUANTIA_VND1_GSYSCFG_10G		4
 
+/* addresses of memory segments in the phy */
+#define DRAM_BASE_ADDR		0x3FFE0000
+#define IRAM_BASE_ADDR		0x40000000
+
+/* firmware image format constants */
+#define VERSION_STRING_SIZE	0x40
+#define VERSION_STRING_OFFSET	0x0200
+#define HEADER_OFFSET		0x300
+
+#pragma pack(1)
+struct aqr_fw_header {
+	u8 padding[4];
+	u8 iram_offset[3];
+	u8 iram_size[3];
+	u8 dram_offset[3];
+	u8 dram_size[3];
+};
+
+#pragma pack()
+
 struct aqr107_hw_stat {
 	const char *name;
 	int reg;
@@ -203,6 +241,49 @@ static const struct aqr107_hw_stat aqr107_hw_stats[] = {
 struct aqr107_priv {
 	u64 sgmii_stats[AQR107_SGMII_STAT_SZ];
 };
+
+static const uint16_t crc16_tab[] = {
+	0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7,
+	0x8108, 0x9129, 0xa14a, 0xb16b, 0xc18c, 0xd1ad, 0xe1ce, 0xf1ef,
+	0x1231, 0x0210, 0x3273, 0x2252, 0x52b5, 0x4294, 0x72f7, 0x62d6,
+	0x9339, 0x8318, 0xb37b, 0xa35a, 0xd3bd, 0xc39c, 0xf3ff, 0xe3de,
+	0x2462, 0x3443, 0x0420, 0x1401, 0x64e6, 0x74c7, 0x44a4, 0x5485,
+	0xa56a, 0xb54b, 0x8528, 0x9509, 0xe5ee, 0xf5cf, 0xc5ac, 0xd58d,
+	0x3653, 0x2672, 0x1611, 0x0630, 0x76d7, 0x66f6, 0x5695, 0x46b4,
+	0xb75b, 0xa77a, 0x9719, 0x8738, 0xf7df, 0xe7fe, 0xd79d, 0xc7bc,
+	0x48c4, 0x58e5, 0x6886, 0x78a7, 0x0840, 0x1861, 0x2802, 0x3823,
+	0xc9cc, 0xd9ed, 0xe98e, 0xf9af, 0x8948, 0x9969, 0xa90a, 0xb92b,
+	0x5af5, 0x4ad4, 0x7ab7, 0x6a96, 0x1a71, 0x0a50, 0x3a33, 0x2a12,
+	0xdbfd, 0xcbdc, 0xfbbf, 0xeb9e, 0x9b79, 0x8b58, 0xbb3b, 0xab1a,
+	0x6ca6, 0x7c87, 0x4ce4, 0x5cc5, 0x2c22, 0x3c03, 0x0c60, 0x1c41,
+	0xedae, 0xfd8f, 0xcdec, 0xddcd, 0xad2a, 0xbd0b, 0x8d68, 0x9d49,
+	0x7e97, 0x6eb6, 0x5ed5, 0x4ef4, 0x3e13, 0x2e32, 0x1e51, 0x0e70,
+	0xff9f, 0xefbe, 0xdfdd, 0xcffc, 0xbf1b, 0xaf3a, 0x9f59, 0x8f78,
+	0x9188, 0x81a9, 0xb1ca, 0xa1eb, 0xd10c, 0xc12d, 0xf14e, 0xe16f,
+	0x1080, 0x00a1, 0x30c2, 0x20e3, 0x5004, 0x4025, 0x7046, 0x6067,
+	0x83b9, 0x9398, 0xa3fb, 0xb3da, 0xc33d, 0xd31c, 0xe37f, 0xf35e,
+	0x02b1, 0x1290, 0x22f3, 0x32d2, 0x4235, 0x5214, 0x6277, 0x7256,
+	0xb5ea, 0xa5cb, 0x95a8, 0x8589, 0xf56e, 0xe54f, 0xd52c, 0xc50d,
+	0x34e2, 0x24c3, 0x14a0, 0x0481, 0x7466, 0x6447, 0x5424, 0x4405,
+	0xa7db, 0xb7fa, 0x8799, 0x97b8, 0xe75f, 0xf77e, 0xc71d, 0xd73c,
+	0x26d3, 0x36f2, 0x0691, 0x16b0, 0x6657, 0x7676, 0x4615, 0x5634,
+	0xd94c, 0xc96d, 0xf90e, 0xe92f, 0x99c8, 0x89e9, 0xb98a, 0xa9ab,
+	0x5844, 0x4865, 0x7806, 0x6827, 0x18c0, 0x08e1, 0x3882, 0x28a3,
+	0xcb7d, 0xdb5c, 0xeb3f, 0xfb1e, 0x8bf9, 0x9bd8, 0xabbb, 0xbb9a,
+	0x4a75, 0x5a54, 0x6a37, 0x7a16, 0x0af1, 0x1ad0, 0x2ab3, 0x3a92,
+	0xfd2e, 0xed0f, 0xdd6c, 0xcd4d, 0xbdaa, 0xad8b, 0x9de8, 0x8dc9,
+	0x7c26, 0x6c07, 0x5c64, 0x4c45, 0x3ca2, 0x2c83, 0x1ce0, 0x0cc1,
+	0xef1f, 0xff3e, 0xcf5d, 0xdf7c, 0xaf9b, 0xbfba, 0x8fd9, 0x9ff8,
+	0x6e17, 0x7e36, 0x4e55, 0x5e74, 0x2e93, 0x3eb2, 0x0ed1, 0x1ef0,
+};
+
+uint16_t crc16_ccitt(uint16_t cksum, const unsigned char *buf, int len)
+{
+	for (int i = 0;  i < len;  i++)
+		cksum = crc16_tab[((cksum>>8) ^ *buf++) & 0xff] ^ (cksum << 8);
+
+	return cksum;
+}
 
 static int aqr107_get_sset_count(struct phy_device *phydev)
 {
@@ -832,12 +913,144 @@ static int aqr107_resume(struct phy_device *phydev)
 	return aqr107_wait_processor_intensive_op(phydev);
 }
 
+/* load data into the phy's memory */
+static int aquantia_load_memory(struct phy_device *phydev, u32 addr,
+				const u8 *data, size_t len)
+{
+	size_t pos;
+	u16 crc = 0, up_crc;
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1,
+	              VEND1_GLOBAL_MAILBOX_INTERFACE1,
+	              VEND1_GLOBAL_MAILBOX_INTERFACE1_CRC_RESET);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1,
+	              VEND1_GLOBAL_MAILBOX_INTERFACE3,
+	              addr >> 16);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1,
+	              VEND1_GLOBAL_MAILBOX_INTERFACE4,
+	              addr & 0xfffc);
+
+	for (pos = 0; pos < len; pos += min(sizeof(u32), len - pos)) {
+		u32 word = 0;
+
+		memcpy(&word, &data[pos], min(sizeof(u32), len - pos));
+
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_MAILBOX_INTERFACE5,
+		              (word >> 16));
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_MAILBOX_INTERFACE6,
+		              word & 0xffff);
+
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_MAILBOX_INTERFACE1,
+		              VEND1_GLOBAL_MAILBOX_INTERFACE1_EXECUTE |
+		              VEND1_GLOBAL_MAILBOX_INTERFACE1_WRITE);
+
+		/* keep a big endian CRC to match the phy processor */
+		word = cpu_to_be32(word);
+		crc = crc16_ccitt(crc, (u8 *)&word, sizeof(word));
+	}
+
+	up_crc = phy_read_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_MAILBOX_INTERFACE2);
+	if (crc != up_crc) {
+		phydev_err(phydev, "CRC mismatch: calculated 0x%04hx PHY 0x%04hx\n",
+		           crc, up_crc);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static u32 unpack_u24(const u8 *data)
+{
+	return (data[2] << 16) + (data[1] << 8) + data[0];
+}
+
+static int aqr107_fw_load(struct phy_device *phydev, const struct firmware *fw)
+{
+	u16 calculated_crc, read_crc;
+	char version[VERSION_STRING_SIZE];
+	u32 primary_offset, iram_offset, iram_size, dram_offset, dram_size;
+	const struct aqr_fw_header *header;
+	int ret;
+
+	read_crc = (fw->data[fw->size - 2] << 8)  | fw->data[fw->size - 1];
+	calculated_crc = crc16_ccitt(0, fw->data, fw->size - 2);
+	if (read_crc != calculated_crc) {
+		phydev_err(phydev, "bad firmware CRC: file 0x%04x calculated 0x%04x\n",
+		           read_crc, calculated_crc);
+		return -EINVAL;
+	}
+
+	/* Find the DRAM and IRAM sections within the firmware file. */
+	primary_offset = ((fw->data[9] & 0xf) << 8 | fw->data[8]) << 12;
+
+	header = (struct aqr_fw_header *)&fw->data[primary_offset + HEADER_OFFSET];
+
+	iram_offset = primary_offset + unpack_u24(header->iram_offset);
+	iram_size = unpack_u24(header->iram_size);
+
+	dram_offset = primary_offset + unpack_u24(header->dram_offset);
+	dram_size = unpack_u24(header->dram_size);
+
+	phydev_dbg(phydev, "primary %d IRAM offset=%d size=%d DRAM offset=%d size=%d\n",
+	           primary_offset, iram_offset, iram_size, dram_offset, dram_size);
+
+	strlcpy(version, (char *)&fw->data[dram_offset + VERSION_STRING_OFFSET],
+		VERSION_STRING_SIZE);
+	phydev_info(phydev, "loading firmware version '%s'\n", version);
+
+	/* stall the microcprocessor */
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_CONTROL2,
+	              VEND1_GLOBAL_CONTROL2_UP_RUN_STALL | VEND1_GLOBAL_CONTROL2_UP_RUN_STALL_OVD);
+
+	phydev_dbg(phydev, "loading DRAM 0x%08x from offset=%d size=%d\n",
+	           DRAM_BASE_ADDR, dram_offset, dram_size);
+	ret = aquantia_load_memory(phydev, DRAM_BASE_ADDR, &fw->data[dram_offset],
+	                           dram_size);
+	if (ret)
+		return ret;
+
+	phydev_dbg(phydev, "loading IRAM 0x%08x from offset=%d size=%d\n",
+	           IRAM_BASE_ADDR, iram_offset, iram_size);
+	ret = aquantia_load_memory(phydev, IRAM_BASE_ADDR, &fw->data[iram_offset],
+				   iram_size);
+	if (ret)
+		return ret;
+
+	/* make sure soft reset and low power mode are clear */
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, AQUANTIA_VND1_GLOBAL_SC, 0);
+
+	/* Release the microprocessor. UP_RESET must be held for 100 usec. */
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_CONTROL2,
+	              VEND1_GLOBAL_CONTROL2_UP_RUN_STALL |
+	              VEND1_GLOBAL_CONTROL2_UP_RUN_STALL_OVD |
+	              VEND1_GLOBAL_CONTROL2_UP_RUN_STALL_RST);
+
+	udelay(100);
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_CONTROL2,
+	              VEND1_GLOBAL_CONTROL2_UP_RUN_STALL_OVD);
+
+	return 0;
+}
+
 static int aqr107_probe(struct phy_device *phydev)
 {
+	const struct firmware *fw;
+	int ret;
+
 	phydev->priv = devm_kzalloc(&phydev->mdio.dev,
 				    sizeof(struct aqr107_priv), GFP_KERNEL);
 	if (!phydev->priv)
 		return -ENOMEM;
+
+	ret = firmware_request_nowarn(&fw, "marvell/aqr113c.cld", &phydev->mdio.dev);
+	if (!ret) {
+		ret = aqr107_fw_load(phydev, fw);
+		if (ret)
+			phydev_err(phydev, "firmware loading failed: %d\n", ret);
+
+		release_firmware(fw);
+	}
 
 	return aqr_hwmon_probe(phydev);
 }
