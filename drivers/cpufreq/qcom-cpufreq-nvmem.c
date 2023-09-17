@@ -286,6 +286,9 @@ static int qcom_cpufreq_ipq8074_name_version(struct device *cpu_dev,
 	switch (msm_id) {
 	case QCOM_ID_IPQ8070A:
 	case QCOM_ID_IPQ8071A:
+	case QCOM_ID_IPQ8172:
+	case QCOM_ID_IPQ8173:
+	case QCOM_ID_IPQ8174:
 		drv->versions = BIT(IPQ8074_ACORN_VERSION);
 		break;
 	case QCOM_ID_IPQ8072A:
