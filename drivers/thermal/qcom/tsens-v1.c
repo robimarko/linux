@@ -162,7 +162,7 @@ static int __init init_8956(struct tsens_priv *priv) {
 	return init_common(priv);
 }
 
-static int init_ipq5018(struct tsens_priv *priv)
+static int __init init_ipq5018(struct tsens_priv *priv)
 {
 	int ret;
 	u32 mask;
