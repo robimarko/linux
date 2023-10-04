@@ -111,6 +111,14 @@ static const struct uniphy_regs ipq5018_regs[] = {
 	},
 };
 
+static const struct uniphy_pcie_data ipq5018_2x1_data = {
+	.lanes		= 1,
+	.lane_offset	= 0x800,
+	.phy_type	= PHY_TYPE_PCIE_GEN2,
+	.init_seq	= ipq5018_regs,
+	.init_seq_num	= ARRAY_SIZE(ipq5018_regs),
+};
+
 static const struct uniphy_pcie_data ipq5018_2x2_data = {
 	.lanes		= 2,
 	.lane_offset	= 0x800,
@@ -263,6 +271,10 @@ static int phy_pipe_clk_register(struct qcom_uniphy_pcie  *phy,
 }
 
 static const struct of_device_id qcom_uniphy_pcie_id_table[] = {
+	{
+		.compatible = "qcom,ipq5018-uniphy-pcie-gen2x1",
+		.data = &ipq5018_2x1_data,
+	},
 	{
 		.compatible = "qcom,ipq5018-uniphy-pcie-gen2x2",
 		.data = &ipq5018_2x2_data,
