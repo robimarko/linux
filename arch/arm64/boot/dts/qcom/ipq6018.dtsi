@@ -404,8 +404,14 @@
 		gcc: gcc@1800000 {
 			compatible = "qcom,gcc-ipq6018";
 			reg = <0x0 0x01800000 0x0 0x80000>;
-			clocks = <&xo>, <&sleep_clk>, <&usb0_ssphy>;
-			clock-names = "xo", "sleep_clk", "usb3phy_0_cc_pipe_clk";
+			clocks = <&xo>,
+				 <&sleep_clk>,
+				 <&usb0_ssphy>,
+				 <&pcie_phy>;
+			clock-names = "xo",
+				      "sleep_clk",
+				      "usb3phy_0_cc_pipe_clk",
+				      "pcie20_phy0_pipe_clk";
 			#clock-cells = <1>;
 			#power-domain-cells = <1>;
 			#reset-cells = <1>;
