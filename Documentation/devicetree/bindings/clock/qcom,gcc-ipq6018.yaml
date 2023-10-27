@@ -31,12 +31,14 @@ properties:
       - description: board XO clock
       - description: sleep clock
       - description: QMP USB PHY pipe clock
+      - description: QMP PCIe PHY pipe clock
 
   clock-names:
     items:
       - const: xo
       - const: sleep_clk
       - const: usb3phy_0_cc_pipe_clk
+      - const: pcie20_phy0_pipe_clk
 
 required:
   - compatible
