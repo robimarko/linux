@@ -902,6 +902,7 @@ properties:
               - qcom,ipq6018-cp01
               - qcom,ipq6018-cp01-c1
               - linksys,mr7350
+              - wallys,dr6018-v4
           - const: qcom,ipq6018
 
       - items:
