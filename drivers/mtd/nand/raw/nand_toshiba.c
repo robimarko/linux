@@ -290,13 +290,28 @@ static int toshiba_nand_init(struct nand_chip *chip)
 	if ((!strncmp("TH58NVG2S3HBAI4", chip->parameters.model,
 		     sizeof("TH58NVG2S3HBAI4") - 1)) ||
 	    (!strncmp("TH58NVG3S0HBAI4", chip->parameters.model,
-		     sizeof("TH58NVG3S0HBAI4") - 1)))
+		     sizeof("TH58NVG3S0HBAI4") - 1)) ||
+	    (!strncmp("TH58NYG3S0HBAI4", chip->parameters.model,
+		     sizeof("TH58NYG3S0HBAI4") - 1)))
 		th58nvg2s3hbai4_init(chip);
 
 	return 0;
 }
 
+static void toshiba_fixup_param_page(struct nand_chip *chip,
+				     struct nand_onfi_params *p)
+{
+	/*
+	 * TH58NYG3S0HBAI4 reports OOB size as 128 bytes but according to
+	 * the datasheet its OOB size is 256 bytes.
+	 */
+	if (!strncmp("TH58NYG3S0HBAI4", chip->parameters.model,
+		     sizeof("TH58NYG3S0HBAI4") - 1))
+		p->spare_bytes_per_page = cpu_to_le16(256);
+}
+
 const struct nand_manufacturer_ops toshiba_nand_manuf_ops = {
 	.detect = toshiba_nand_decode_id,
 	.init = toshiba_nand_init,
+	.fixup_onfi_param_page = toshiba_fixup_param_page,
 };
