@@ -93,9 +93,9 @@ static int aqr_fw_load_memory(struct phy_device *phydev, u32 addr,
 	u16 crc = 0, up_crc;
 	size_t pos;
 
-	/* PHY expect addr in LE */
-	addr = (__force u32)cpu_to_le32(addr);
-
+	/* PHY expect addr in LE. Hardcoded addr in defines are
+	 * already in this format.
+	 */
 	phy_write_mmd(phydev, MDIO_MMD_VEND1,
 		      VEND1_GLOBAL_MAILBOX_INTERFACE1,
 		      VEND1_GLOBAL_MAILBOX_INTERFACE1_CRC_RESET);
@@ -128,7 +128,7 @@ static int aqr_fw_load_memory(struct phy_device *phydev, u32 addr,
 		 * We convert word to big-endian as PHY is BE and mailbox will
 		 * return a BE CRC.
 		 */
-		word = (__force u32)cpu_to_be32(word);
+		word = __swab32(word);
 		crc = crc_ccitt_false(crc, (u8 *)&word, sizeof(word));
 	}
 
