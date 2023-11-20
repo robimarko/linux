@@ -93,9 +93,9 @@ static int aqr_fw_load_memory(struct phy_device *phydev, u32 addr,
 	u16 crc = 0, up_crc;
 	size_t pos;
 
-	/* PHY expect addr in LE */
-	addr = (__force u32)cpu_to_le32(addr);
-
+	/* PHY expect addr in LE. Hardcoded addr in defines are
+	 * already in this format.
+	 */
 	phy_write_mmd(phydev, MDIO_MMD_VEND1,
 		      VEND1_GLOBAL_MAILBOX_INTERFACE1,
 		      VEND1_GLOBAL_MAILBOX_INTERFACE1_CRC_RESET);
@@ -113,7 +113,7 @@ static int aqr_fw_load_memory(struct phy_device *phydev, u32 addr,
 		u32 word;
 
 		/* FW data is always stored in little-endian */
-		word = get_unaligned((const u32 *)(data + pos));
+		word = get_unaligned_le32((const u32 *)(data + pos));
 
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_MAILBOX_INTERFACE5,
 			      VEND1_GLOBAL_MAILBOX_INTERFACE5_MSW_DATA(word));
@@ -124,19 +124,13 @@ static int aqr_fw_load_memory(struct phy_device *phydev, u32 addr,
 			      VEND1_GLOBAL_MAILBOX_INTERFACE1_EXECUTE |
 			      VEND1_GLOBAL_MAILBOX_INTERFACE1_WRITE);
 
-		/* calculate CRC as we load data to the mailbox.
-		 * We convert word to big-endian as PHY is BE and mailbox will
-		 * return a BE CRC.
-		 */
-		word = (__force u32)cpu_to_be32(word);
-		crc = crc_ccitt_false(crc, (u8 *)&word, sizeof(word));
-	}
-
-	up_crc = phy_read_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_MAILBOX_INTERFACE2);
-	if (crc != up_crc) {
-		phydev_err(phydev, "CRC mismatch: calculated 0x%04x PHY 0x%04x\n",
-			   crc, up_crc);
-		return -EINVAL;
+		crc = crc_ccitt_false(crc, data + pos, sizeof(u32));
+		up_crc = phy_read_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_MAILBOX_INTERFACE2);
+		if (crc != up_crc) {
+			phydev_err(phydev, "CRC mismatch: calculated 0x%04x PHY 0x%04x FW pos %d\n",
+				crc, up_crc, pos);
+			return -EINVAL;
+		}
 	}
 
 	return 0;
