@@ -1143,9 +1143,9 @@ static int q6v5_wcss_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	qcom_add_glink_subdev(rproc, &wcss->glink_subdev, "q6wcss");
+	qcom_add_glink_subdev(rproc, &wcss->glink_subdev, desc->ssr_name);
 	qcom_add_pdm_subdev(rproc, &wcss->pdm_subdev);
-	qcom_add_ssr_subdev(rproc, &wcss->ssr_subdev, "q6wcss");
+	qcom_add_ssr_subdev(rproc, &wcss->ssr_subdev, desc->ssr_name);
 
 	if (desc->ssctl_id)
 		wcss->sysmon = qcom_add_sysmon_subdev(rproc,
@@ -1195,7 +1195,7 @@ static const struct wcss_data wcss_ipq6018_res_init = {
 	.aon_reset_required = true,
 	.wcss_q6_reset_required = true,
 	.bcr_reset_required = false,
-	.ssr_name = "q6wcss",
+	.ssr_name = "wcnss",
 	.ops = &q6v5_wcss_ipq8074_ops,
 	.requires_force_stop = true,
 	.need_mem_protection = true,
