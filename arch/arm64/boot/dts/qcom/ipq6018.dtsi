@@ -955,8 +955,8 @@
 				      "wcss_reset",
 				      "wcss_q6_reset";
 
-			clocks = <&gcc GCC_PRNG_AHB_CLK>;
-			clock-names = "prng";
+			clocks = <&gcc GCC_PRNG_AHB_CLK>, <&gcc GCC_QDSS_AT_CLK>;
+			clock-names = "prng", "qdss" ;
 
 			qcom,halt-regs = <&tcsr 0x18000 0x1b000 0xe000>;
 
