@@ -120,6 +120,7 @@ struct q6v5_wcss {
 	struct clk *qdsp6ss_core_gfmux;
 	struct clk *lcc_bcr_sleep;
 	struct clk *prng_clk;
+	struct clk *qdss_clk;
 	struct regulator *cx_supply;
 	struct qcom_sysmon *sysmon;
 
@@ -259,6 +260,9 @@ static int q6v5_wcss_start(struct rproc *rproc)
 		dev_err(wcss->dev, "prng clock enable failed\n");
 		return ret;
 	}
+
+	if (wcss->qdss_clk)
+		clk_prepare_enable(wcss->qdss_clk);
 
 	qcom_q6v5_prepare(&wcss->q6v5);
 
@@ -773,6 +777,8 @@ static int q6v5_wcss_stop(struct rproc *rproc)
 	}
 
 pas_done:
+	if (wcss->qdss_clk)
+		clk_disable_unprepare(wcss->qdss_clk);
 	clk_disable_unprepare(wcss->prng_clk);
 	qcom_q6v5_unprepare(&wcss->q6v5);
 
@@ -981,6 +987,12 @@ static int ipq_init_clock(struct q6v5_wcss *wcss)
 			dev_err(wcss->dev, "Failed to get prng clock\n");
 		return ret;
 	}
+
+	wcss->qdss_clk = devm_clk_get(wcss->dev, "qdss");
+	if (IS_ERR(wcss->qdss_clk)) {
+		wcss->qdss_clk = NULL;
+	}
+
 	return 0;
 }
 
