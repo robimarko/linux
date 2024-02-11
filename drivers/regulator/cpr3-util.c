@@ -1552,9 +1552,9 @@ int cpr3_determine_part_type(struct cpr3_regulator *vreg, int fuse_volt)
 		return 0;
 
 	if (soc_version_major > 1)
-		strlcpy(prop_name, prop_name_v2, sizeof(prop_name_v2));
+		strscpy(prop_name, prop_name_v2, sizeof(prop_name_v2));
 	else
-		strlcpy(prop_name, prop_name_def, sizeof(prop_name_def));
+		strscpy(prop_name, prop_name_def, sizeof(prop_name_def));
 
 	if (!of_find_property(vreg->of_node, prop_name, &len)) {
 		cpr3_err(vreg, "property %s is missing\n", prop_name);
@@ -1603,7 +1603,7 @@ int cpr3_determine_temp_base_open_loop_correction(struct cpr3_regulator *vreg,
 			"qcom,cpr-cold-temp-voltage-adjustment-%d",
 			vreg->part_type);
 	} else {
-		strlcpy(prop_str, "qcom,cpr-cold-temp-voltage-adjustment",
+		strscpy(prop_str, "qcom,cpr-cold-temp-voltage-adjustment",
 			sizeof(prop_str));
 	}
 
@@ -1658,10 +1658,10 @@ bool cpr3_can_adjust_cold_temp(struct cpr3_regulator *vreg)
 	BUG_ON(soc_version_major <= 0);
 
 	if (soc_version_major > 1)
-		strlcpy(prop_str, "qcom,cpr-cold-temp-threshold-v2",
+		strscpy(prop_str, "qcom,cpr-cold-temp-threshold-v2",
 			sizeof(prop_str));
 	else
-		strlcpy(prop_str, "qcom,cpr-cold-temp-threshold",
+		strscpy(prop_str, "qcom,cpr-cold-temp-threshold",
 			sizeof(prop_str));
 
 	if (!of_find_property(vreg->of_node, prop_str, NULL)) {
@@ -1701,15 +1701,15 @@ int cpr3_get_cold_temp_threshold(struct cpr3_regulator *vreg, int *cold_temp)
 			"qcom,cpr-cold-temp-voltage-adjustment-%d",
 			vreg->part_type);
 	} else {
-		strlcpy(req_prop_str, "qcom,cpr-cold-temp-voltage-adjustment",
+		strscpy(req_prop_str, "qcom,cpr-cold-temp-voltage-adjustment",
 			sizeof(req_prop_str));
 	}
 
 	if (soc_version_major > 1)
-		strlcpy(prop_str, "qcom,cpr-cold-temp-threshold-v2",
+		strscpy(prop_str, "qcom,cpr-cold-temp-threshold-v2",
 			sizeof(prop_str));
 	else
-		strlcpy(prop_str, "qcom,cpr-cold-temp-threshold",
+		strscpy(prop_str, "qcom,cpr-cold-temp-threshold",
 			sizeof(prop_str));
 
 	if (!of_find_property(vreg->of_node, req_prop_str, NULL)) {
@@ -1767,7 +1767,7 @@ int cpr3_adjust_fused_open_loop_voltages(struct cpr3_regulator *vreg,
 			 "qcom,cpr-open-loop-voltage-fuse-adjustment-%d",
 			 vreg->part_type);
 	} else {
-		strlcpy(prop_str, "qcom,cpr-open-loop-voltage-fuse-adjustment",
+		strscpy(prop_str, "qcom,cpr-open-loop-voltage-fuse-adjustment",
 			sizeof(prop_str));
 	}
 
