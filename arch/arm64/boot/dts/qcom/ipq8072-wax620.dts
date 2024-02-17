@@ -1,23 +1,24 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
 /dts-v1/;
 
 #include "ipq8074.dtsi"
 #include "ipq8074-hk-cpu.dtsi"
 #include "ipq8074-ess.dtsi"
-
 #include <dt-bindings/input/input.h>
-#include <dt-bindings/leds/common.h>
 #include <dt-bindings/gpio/gpio.h>
 
 / {
-	model = "Netgear WAX218";
-	compatible = "netgear,wax218", "qcom,ipq8074";
+	model = "Netgear WAX620";
+	compatible = "netgear,wax620", "qcom,ipq8074";
 
 	aliases {
 		serial0 = &blsp1_uart5;
-		led-boot = &led_power_amber;
-		led-failsafe = &led_power_amber;
-		led-running = &led_power_amber;
-		led-upgrade = &led_power_amber;
+		ethernet0 = &dp6;
+		led-boot = &led_system_blue;
+		led-failsafe = &led_system_red;
+		led-running = &led_system_green;
+		led-upgrade = &led_system_blue;
 	};
 
 	chosen {
@@ -26,7 +27,7 @@
 		 * Netgear's U-Boot adds "ubi.mtd=rootfs root=mtd:ubi_rootfs"
 		 * That fails to create a UBI block device, so add it here.
 		*/
-		bootargs-append = " ubi.block=0,rootfs root=/dev/ubiblock0_1";
+		bootargs-append = " root=/dev/ubiblock0_1";
 	};
 
 	keys {
@@ -61,27 +62,51 @@
 	leds {
 		compatible = "gpio-leds";
 
-		led_power_amber: led_power {
-			function = LED_FUNCTION_POWER;
-			color = <LED_COLOR_ID_AMBER>;
+		led_system_red: system-red {
+			label = "system:red";
+			gpios = <&tlmm 54 GPIO_ACTIVE_HIGH>;
+		};
+
+		led_system_green: system-green {
+			label = "system:green";
+			gpios = <&tlmm 55 GPIO_ACTIVE_HIGH>;
+		};
+
+		led_system_blue: system-blue {
+			label = "system:blue";
+			gpios = <&tlmm 56 GPIO_ACTIVE_HIGH>;
+		};
+
+		led_lan_g {
+			label = "lan:green";
+			gpios = <&led_gpio 0 GPIO_ACTIVE_HIGH>;
+		};
+
+		led_lan_o {
+			label = "lan:orange";
 			gpios = <&led_gpio 1 GPIO_ACTIVE_HIGH>;
 		};
 
-		led_lan {
-			function = LED_FUNCTION_LAN;
-			color = <LED_COLOR_ID_BLUE>;
+		led_2g_b {
+			label = "wlan2g:blue";
 			gpios = <&led_gpio 2 GPIO_ACTIVE_HIGH>;
 		};
 
-		led_wlan_2g {
-			label = "blue:wlan2g";
+		led_2g_g {
+			label = "wlan2g:green";
 			gpios = <&led_gpio 3 GPIO_ACTIVE_HIGH>;
 		};
 
-		led_wlan_5g {
-			label = "blue:wlan5g";
+		led_5g_b {
+			label = "wlan5g:blue";
 			gpios = <&led_gpio 4 GPIO_ACTIVE_HIGH>;
 		};
+
+		led_5g_g {
+			label = "wlan5g:green";
+			gpios = <&led_gpio 5 GPIO_ACTIVE_HIGH>;
+		};
+
 	};
 };
 
@@ -135,12 +160,10 @@
 	};
 };
 
-&dp6_syn {
+&dp6 {
 	status = "okay";
 	phy-handle = <&qca8081_28>;
 	label = "lan";
-	nvmem-cells = <&macaddr_ubootenv_ethaddr>;
-	nvmem-cell-names = "mac-address";
 };
 
 &qpic_bam {
@@ -158,22 +181,6 @@
 
 		partitions {
 			compatible = "qcom,smem-part";
-
-			partition-0-appsblenv {
-				compatible = "fixed-partitions";
-				label = "0:appsblenv";
-				read-only;
-				#address-cells = <1>;
-				#size-cells = <1>;
-
-				partition@0 {
-					compatible = "u-boot,env";
-					label = "env-data";
-					reg = <0x0 0x40000>;
-
-					macaddr_ubootenv_ethaddr: ethaddr {};
-				};
-			};
 		};
 	};
 };
@@ -185,5 +192,5 @@
 &wifi {
 	status = "okay";
 
-	qcom,ath11k-calibration-variant = "Netgear-WAX218";
+	qcom,ath11k-calibration-variant = "Netgear-WAX620";
 };
