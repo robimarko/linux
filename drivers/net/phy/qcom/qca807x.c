@@ -358,7 +358,7 @@ static int qca807x_led_blink_set(struct phy_device *phydev, u8 index,
 	return qca808x_led_reg_blink_set(phydev, reg, delay_on, delay_off);
 }
 
-#ifdef CONFIG_GPIOLIB
+#if IS_ENABLED(CONFIG_GPIOLIB)
 static int qca807x_gpio_get_direction(struct gpio_chip *gc, unsigned int offset)
 {
 	return GPIO_LINE_DIRECTION_OUT;
