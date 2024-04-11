@@ -55,6 +55,8 @@ properties:
       phandle to a node describing reserved memory (System RAM memory)
       used by ath11k firmware (see bindings/reserved-memory/reserved-memory.txt)
 
+  ieee80211-freq-limit: true
+
   iommus:
     minItems: 1
     maxItems: 2
@@ -88,6 +90,7 @@ required:
 additionalProperties: false
 
 allOf:
+  - $ref: ieee80211.yaml#
   - if:
       properties:
         compatible:
