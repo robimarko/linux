@@ -611,7 +611,7 @@ free_rproc:
 	return ret;
 }
 
-static int q6_wcss_remove(struct platform_device *pdev)
+static void q6_wcss_remove(struct platform_device *pdev)
 {
 	struct rproc *rproc = platform_get_drvdata(pdev);
 	struct q6_wcss *wcss = rproc->priv;
@@ -620,8 +620,6 @@ static int q6_wcss_remove(struct platform_device *pdev)
 
 	rproc_del(rproc);
 	rproc_free(rproc);
-
-	return 0;
 }
 
 static const struct wcss_data q6_ipq5018_res_init = {
