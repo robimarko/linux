@@ -1783,11 +1783,11 @@ static int cpr4_apss_regulator_probe(struct platform_device *pdev)
 	return cpr3_regulator_register(pdev, ctrl);
 }
 
-static int cpr4_apss_regulator_remove(struct platform_device *pdev)
+static void cpr4_apss_regulator_remove(struct platform_device *pdev)
 {
 	struct cpr3_controller *ctrl = platform_get_drvdata(pdev);
 
-	return cpr3_regulator_unregister(ctrl);
+	cpr3_regulator_unregister(ctrl);
 }
 
 static struct platform_driver cpr4_apss_regulator_driver = {
