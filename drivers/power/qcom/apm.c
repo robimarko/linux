@@ -900,7 +900,7 @@ static int msm_apm_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int msm_apm_remove(struct platform_device *pdev)
+static void msm_apm_remove(struct platform_device *pdev)
 {
 	struct msm_apm_ctrl_dev *ctrl_dev;
 
@@ -911,8 +911,6 @@ static int msm_apm_remove(struct platform_device *pdev)
 		mutex_unlock(&apm_ctrl_list_mutex);
 		apm_debugfs_deinit(ctrl_dev);
 	}
-
-	return 0;
 }
 
 static struct platform_driver msm_apm_driver = {
