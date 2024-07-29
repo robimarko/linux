@@ -668,11 +668,11 @@ static int cpr3_npu_regulator_probe(struct platform_device *pdev)
 	return cpr3_open_loop_regulator_register(pdev, ctrl);
 }
 
-static int cpr3_npu_regulator_remove(struct platform_device *pdev)
+static void cpr3_npu_regulator_remove(struct platform_device *pdev)
 {
 	struct cpr3_controller *ctrl = platform_get_drvdata(pdev);
 
-	return cpr3_open_loop_regulator_unregister(ctrl);
+	cpr3_open_loop_regulator_unregister(ctrl);
 }
 
 static struct platform_driver cpr3_npu_regulator_driver = {
@@ -682,7 +682,7 @@ static struct platform_driver cpr3_npu_regulator_driver = {
 		.owner		= THIS_MODULE,
 	},
 	.probe		= cpr3_npu_regulator_probe,
-	.remove		= cpr3_npu_regulator_remove,
+	.remove_new	= cpr3_npu_regulator_remove,
 };
 
 static int cpr3_regulator_init(void)
