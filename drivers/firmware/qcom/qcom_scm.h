@@ -102,6 +102,9 @@ struct qcom_tzmem_pool *qcom_scm_get_tzmem_pool(void);
 #define QCOM_SCM_PIL_PAS_SHUTDOWN	0x06
 #define QCOM_SCM_PIL_PAS_IS_SUPPORTED	0x07
 #define QCOM_SCM_PIL_PAS_MSS_RESET	0x0a
+#define QCOM_SCM_INTERNAL_WIFI_POWERUP	0x17
+#define QCOM_SCM_INTERNAL_WIFI_SHUTDOWN	0x18
+#define QCOM_SCM_PIL_PAS_LOAD_SEG	0x19
 #define QCOM_SCM_MSA_LOCK		0x24
 #define QCOM_SCM_MSA_UNLOCK		0x25
 
