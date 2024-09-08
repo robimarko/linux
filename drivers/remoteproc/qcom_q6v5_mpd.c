@@ -156,6 +156,8 @@ static int q6_wcss_spawn_pd(struct rproc *rproc)
 static int wcss_pd_start(struct rproc *rproc)
 {
 	struct userpd *upd = rproc->priv;
+	struct rproc *rpd_rproc = dev_get_drvdata(upd->dev->parent);
+	struct q6_wcss *wcss = rpd_rproc->priv;
 	u32 pasid = (upd->pd_asid << 8) | UPD_SWID;
 	int ret;
 
@@ -171,6 +173,14 @@ static int wcss_pd_start(struct rproc *rproc)
 			return ret;
 	}
 
+	if (upd->pd_asid == 1) {
+		ret = qcom_scm_internal_wifi_powerup(wcss->desc->pasid);
+		if (ret) {
+			dev_err(upd->dev, "failed to power up internal radio\n");
+			return ret;
+		}
+	}
+
 	return ret;
 }
 
@@ -179,6 +189,12 @@ static int q6_wcss_stop(struct rproc *rproc)
 	struct q6_wcss *wcss = rproc->priv;
 	const struct wcss_data *desc = wcss->desc;
 	int ret;
+
+	ret = qcom_q6v5_request_stop(&wcss->q6, NULL);
+	if (ret) {
+		dev_err(wcss->dev, "pd not stopped\n");
+		return ret;
+	}
 
 	ret = qcom_scm_pas_shutdown(desc->pasid);
 	if (ret) {
@@ -219,6 +235,7 @@ static int wcss_pd_stop(struct rproc *rproc)
 {
 	struct userpd *upd = rproc->priv;
 	struct rproc *rpd_rproc = dev_get_drvdata(upd->dev->parent);
+	struct q6_wcss *wcss = rpd_rproc->priv;
 	u32 pasid = (upd->pd_asid << 8) | UPD_SWID;
 	int ret;
 
@@ -226,6 +243,14 @@ static int wcss_pd_stop(struct rproc *rproc)
 		ret = qcom_q6v5_request_stop(&upd->q6, NULL);
 		if (ret) {
 			dev_err(upd->dev, "pd not stopped\n");
+			return ret;
+		}
+	}
+
+	if (upd->pd_asid == 1) {
+		ret = qcom_scm_internal_wifi_shutdown(wcss->desc->pasid);
+		if (ret) {
+			dev_err(upd->dev, "failed to power down internal radio\n");
 			return ret;
 		}
 	}
@@ -431,15 +456,14 @@ static int wcss_pd_load(struct rproc *rproc, const struct firmware *fw)
 	struct userpd *upd = rproc->priv;
 	struct rproc *rpd_rproc = dev_get_drvdata(upd->dev->parent);
 	struct q6_wcss *wcss = rpd_rproc->priv;
-	u32 pasid = (upd->pd_asid << 8) | UPD_SWID;
 	int ret;
 
 	ret = rproc_boot(rpd_rproc);
 	if (ret)
 		return ret;
 
-	return qcom_mdt_load(upd->dev, fw, rproc->firmware,
-			     pasid, wcss->mem_region,
+	return qcom_mdt_load_pd_seg(upd->dev, fw, rproc->firmware,
+			     wcss->desc->pasid, upd->pd_asid, wcss->mem_region,
 			     wcss->mem_phys, wcss->mem_size,
 			     NULL);
 }
@@ -776,6 +800,12 @@ static void q6_wcss_remove(struct platform_device *pdev)
 	rproc_free(rproc);
 }
 
+static const struct wcss_data q6_ipq5018_res_init = {
+	.pasid = MPD_WCNSS_PAS_ID,
+	// .share_upd_info_to_q6 = true, /* Version 1 */
+	// .mdt_load_sec = qcom_mdt_load_pd_seg,
+};
+
 static const struct wcss_data q6_ipq5332_res_init = {
 	.pasid = MPD_WCNSS_PAS_ID,
 	.share_upd_info_to_q6 = true,
@@ -786,6 +816,7 @@ static const struct wcss_data q6_ipq9574_res_init = {
 };
 
 static const struct of_device_id q6_wcss_of_match[] = {
+	{ .compatible = "qcom,ipq5018-q6-mpd", .data = &q6_ipq5018_res_init },
 	{ .compatible = "qcom,ipq5332-q6-mpd", .data = &q6_ipq5332_res_init },
 	{ .compatible = "qcom,ipq9574-q6-mpd", .data = &q6_ipq9574_res_init },
 	{ },
