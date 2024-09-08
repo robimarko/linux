@@ -42,6 +42,9 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 
+#define TCSR_ETH_CMN				0x0
+#define  TCSR_ETH_CMN_ENABLE			BIT(0)
+
 #define CMN_PLL_REFCLK_SRC_SELECTION		0x28
 #define CMN_PLL_REFCLK_SRC_DIV			GENMASK(9, 8)
 
@@ -78,6 +81,28 @@ static const struct cmn_pll_fixed_output_clk ipq9574_output_clks[] = {
 	CLK_PLL_OUTPUT(ETH2_50MHZ_CLK, "eth2-50mhz", 50000000UL),
 	CLK_PLL_OUTPUT(ETH_25MHZ_CLK, "eth-25mhz", 25000000UL),
 };
+
+static int ipq_cmn_pll_tcsr_enable(struct platform_device *pdev)
+{
+	struct resource *res;
+	void __iomem *tcsr_base;
+	u32 val;
+
+	/* For IPQ50xx, tcsr is necessary to enable cmn block */
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "tcsr");
+	if (!res)
+		return 0;
+
+	tcsr_base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR_OR_NULL(tcsr_base))
+		return PTR_ERR(tcsr_base);
+
+	val = readl(tcsr_base + TCSR_ETH_CMN);
+	val |= TCSR_ETH_CMN_ENABLE;
+	writel(val, (tcsr_base + TCSR_ETH_CMN));
+
+	return 0;
+}
 
 static int ipq_cmn_pll_config(struct device *dev, unsigned long parent_rate)
 {
@@ -180,6 +205,10 @@ static int ipq_cmn_pll_clk_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct clk *clk;
 	int ret;
+
+	ret = ipq_cmn_pll_tcsr_enable(pdev);
+	if (ret)
+		return dev_err_probe(dev, ret, "Enable CMN PLL failed\n");
 
 	/*
 	 * To access the CMN PLL registers, the GCC AHB & SYSY clocks
