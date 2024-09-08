@@ -78,6 +78,8 @@ struct q6_wcss {
 	phys_addr_t mem_reloc;
 	void *mem_region;
 	size_t mem_size;
+	struct clk_bulk_data *clks;
+	int num_clks;
 	const struct wcss_data *desc;
 	const char **firmware;
 	struct userpd *upd[MAX_UPD];
@@ -718,6 +720,16 @@ static int q6_wcss_probe(struct platform_device *pdev)
 	ret = q6_alloc_memory_region(wcss);
 	if (ret)
 		goto free_rproc;
+
+	wcss->num_clks = devm_clk_bulk_get_all(wcss->dev, &wcss->clks);
+	if (wcss->num_clks < 0)
+		return dev_err_probe(wcss->dev, wcss->num_clks,
+				     "failed to acquire clocks\n");
+
+	ret = clk_bulk_prepare_enable(wcss->num_clks, wcss->clks);
+	if (ret)
+		return dev_err_probe(wcss->dev, ret,
+				     "failed to enable clocks\n");
 
 	ret = qcom_q6v5_init(&wcss->q6, pdev, rproc,
 			     WCSS_CRASH_REASON, NULL, NULL);
