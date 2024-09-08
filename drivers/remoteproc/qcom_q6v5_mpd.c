@@ -34,6 +34,7 @@
 
 #define BUF_SIZE			35
 
+#define MAX_UPD				3
 #define MAX_FIRMWARE			3
 
 #define RPD_SWID		MPD_WCNSS_PAS_ID
@@ -43,8 +44,6 @@
 #define UPD_BOOT_INFO_HEADER_TYPE	0x2
 #define UPD_BOOT_INFO_SMEM_ID		507
 #define VERSION2			2
-
-static LIST_HEAD(upd_rproc_list);
 
 /**
  * struct userpd_boot_info_header - header of user pd bootinfo
@@ -81,6 +80,7 @@ struct q6_wcss {
 	size_t mem_size;
 	const struct wcss_data *desc;
 	const char **firmware;
+	struct userpd *upd[MAX_UPD];
 };
 
 struct userpd {
@@ -271,13 +271,12 @@ static void *q6_wcss_da_to_va(struct rproc *rproc, u64 da, size_t len,
  */
 static int share_upd_bootinfo_to_q6(struct rproc *rproc)
 {
-	int ret;
+	int i, ret;
 	size_t size;
 	u16 cnt = 0, version;
 	void *ptr;
 	struct q6_wcss *wcss = rproc->priv;
 	struct userpd *upd;
-	struct rproc *upd_rproc;
 	struct userpd_boot_info upd_bootinfo = {0};
 	const struct firmware *fw;
 
@@ -302,16 +301,19 @@ static int share_upd_bootinfo_to_q6(struct rproc *rproc)
 	memcpy_toio(ptr, &version, sizeof(version));
 	ptr += sizeof(version);
 
-	list_for_each_entry(upd_rproc, &upd_rproc_list, node)
-		cnt++;
+	for (i = 0; i < ARRAY_SIZE(wcss->upd); i++)
+		if (wcss->upd[i])
+			cnt++;
 
 	/* No of elements */
 	cnt = (sizeof(upd_bootinfo) * cnt);
 	memcpy_toio(ptr, &cnt, sizeof(u16));
 	ptr += sizeof(u16);
 
-	list_for_each_entry(upd_rproc, &upd_rproc_list, node) {
-		upd = upd_rproc->priv;
+	for (i = 0; i < ARRAY_SIZE(wcss->upd); i++) {
+		upd = wcss->upd[i];
+		if (!upd)
+			continue;
 
 		/* TYPE */
 		upd_bootinfo.header.type = UPD_BOOT_INFO_HEADER_TYPE;
@@ -323,14 +325,14 @@ static int share_upd_bootinfo_to_q6(struct rproc *rproc)
 		/* Process ID */
 		upd_bootinfo.pid = upd->pd_asid + 1;
 
-		ret = request_firmware(&fw, upd_rproc->firmware, upd->dev);
+		ret = request_firmware(&fw, upd->q6.rproc->firmware, upd->dev);
 		if (ret < 0) {
 			dev_err(upd->dev, "request_firmware failed: %d\n",	ret);
 			return ret;
 		}
 
 		/* Load address */
-		upd_bootinfo.bootaddr = rproc_get_boot_addr(upd_rproc, fw);
+		upd_bootinfo.bootaddr = rproc_get_boot_addr(upd->q6.rproc, fw);
 
 		/* Firmware mem size */
 		upd_bootinfo.data_size = qcom_mdt_get_size(fw);
@@ -598,18 +600,23 @@ static int init_irq(struct qcom_q6v5 *q6,
 	return 0;
 }
 
-static void q6_release_resources(void)
+static void q6_release_resources(struct q6_wcss *wcss)
 {
-	struct rproc *upd_rproc;
+	struct userpd *upd;
+	int i;
 
 	/* Release userpd resources */
-	list_for_each_entry(upd_rproc, &upd_rproc_list, node) {
-		rproc_del(upd_rproc);
-		rproc_free(upd_rproc);
+	for (i = 0; i < ARRAY_SIZE(wcss->upd); i++) {
+		upd = wcss->upd[i];
+		if (!upd)
+			continue;
+
+		rproc_del(upd->q6.rproc);
+		rproc_free(upd->q6.rproc);
 	}
 }
 
-static int q6_register_userpd(struct platform_device *pdev,
+static int q6_register_userpd(struct q6_wcss *wcss,
 			      struct device_node *userpd_np)
 {
 	struct userpd *upd;
@@ -634,16 +641,16 @@ static int q6_register_userpd(struct platform_device *pdev,
 		return ret;
 	}
 
-	dev_info(&pdev->dev, "%s node found\n", userpd_np->name);
+	dev_info(wcss->dev, "%s node found\n", userpd_np->name);
 
 	userpd_pdev = of_platform_device_create(userpd_np, userpd_np->name,
-						&pdev->dev);
+						wcss->dev);
 	if (!userpd_pdev)
-		return dev_err_probe(&pdev->dev, -ENODEV,
+		return dev_err_probe(wcss->dev, -ENODEV,
 				     "failed to create %s platform device\n",
 				     userpd_np->name);
 
-	userpd_pdev->dev.driver = pdev->dev.driver;
+	userpd_pdev->dev.driver = wcss->dev->driver;
 	rproc = rproc_alloc(&userpd_pdev->dev, userpd_pdev->name, &wcss_ops,
 			    firmware_name, sizeof(*upd));
 	if (!rproc) {
@@ -664,7 +671,7 @@ static int q6_register_userpd(struct platform_device *pdev,
 	if (ret)
 		goto free_rproc;
 
-	list_add(&rproc->node, &upd_rproc_list);
+	wcss->upd[upd->pd_asid] = upd;
 	platform_set_drvdata(userpd_pdev, rproc);
 	qcom_add_ssr_subdev(rproc, &upd->ssr_subdev, userpd_pdev->name);
 	return 0;
@@ -729,10 +736,10 @@ static int q6_wcss_probe(struct platform_device *pdev)
 
 	/* Iterate over userpd child's and register with rproc */
 	for_each_available_child_of_node(pdev->dev.of_node, userpd_np) {
-		ret = q6_register_userpd(pdev, userpd_np);
+		ret = q6_register_userpd(wcss, userpd_np);
 		if (ret) {
 			/* release resources of successfully allocated userpd rproc's */
-			q6_release_resources();
+			q6_release_resources(wcss);
 			return dev_err_probe(&pdev->dev, ret,
 					     "Failed to register userpd(%s)\n",
 					     userpd_np->name);
