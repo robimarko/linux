@@ -16,6 +16,12 @@
 	#size-cells = <2>;
 
 	clocks {
+		cmn_pll_ref_clk: cmn-pll-ref-clk {
+			compatible = "fixed-clock";
+			clock-frequency = <96000000>;
+			#clock-cells = <0>;
+		};
+
 		sleep_clk: sleep-clk {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
@@ -146,6 +152,19 @@
 			#phy-cells = <0>;
 
 			status = "disabled";
+		};
+
+		cmn_pll: clock-controller@9b000 {
+			compatible = "qcom,ipq9574-cmn-pll";
+			reg = <0x0009b000 0x800>,
+			      <0x19475c4 0x4>;
+			reg-names = "cmn",
+				    "tcsr";
+			clocks = <&cmn_pll_ref_clk>,
+				 <&gcc GCC_CMN_BLK_AHB_CLK>,
+				 <&gcc GCC_CMN_BLK_SYS_CLK>;
+			clock-names = "ref", "ahb", "sys";
+			#clock-cells = <1>;
 		};
 
 		qfprom: qfprom@a0000 {
