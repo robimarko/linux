@@ -80,6 +80,7 @@
 		scm {
 			compatible = "qcom,scm-ipq5018", "qcom,scm";
 			qcom,sdi-enabled;
+			qcom,dload-mode = <&tcsr 0x6100>;
 		};
 	};
 
