@@ -11,7 +11,10 @@ maintainers:
 
 properties:
   compatible:
-    const: qcom,ipq6018-pwm
+    items:
+      - enum:
+          - qcom,ipq5018-pwm
+      - const: qcom,ipq6018-pwm
 
   reg:
     description: Offset of PWM register in the TCSR block.
