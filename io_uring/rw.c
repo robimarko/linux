@@ -330,22 +330,21 @@ static int io_prep_rw_fixed(struct io_kiocb *req, const struct io_uring_sqe *sqe
 {
 	struct io_rw *rw = io_kiocb_to_cmd(req, struct io_rw);
 	struct io_ring_ctx *ctx = req->ctx;
+	struct io_rsrc_node *node;
 	struct io_async_rw *io;
-	u16 index;
 	int ret;
 
 	ret = io_prep_rw(req, sqe, ddir, false);
 	if (unlikely(ret))
 		return ret;
 
-	if (unlikely(req->buf_index >= ctx->nr_user_bufs))
+	node = io_rsrc_node_lookup(&ctx->buf_table, req->buf_index);
+	if (!node)
 		return -EFAULT;
-	index = array_index_nospec(req->buf_index, ctx->nr_user_bufs);
-	req->imu = ctx->user_bufs[index];
-	io_req_set_rsrc_node(req, ctx, 0);
+	io_req_assign_rsrc_node(req, node);
 
 	io = req->async_data;
-	ret = io_import_fixed(ddir, &io->iter, req->imu, rw->addr, rw->len);
+	ret = io_import_fixed(ddir, &io->iter, node->buf, rw->addr, rw->len);
 	iov_iter_save_state(&io->iter, &io->iter_state);
 	return ret;
 }
