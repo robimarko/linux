@@ -68,7 +68,7 @@ static int io_install_fixed_file(struct io_ring_ctx *ctx, struct file *file,
 		return -EINVAL;
 
 	node = io_rsrc_node_alloc(ctx, IORING_RSRC_FILE);
-	if (IS_ERR(node))
+	if (!node)
 		return -ENOMEM;
 
 	if (!io_reset_rsrc_node(&ctx->file_table.data, slot_index))
