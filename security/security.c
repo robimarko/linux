@@ -1734,8 +1734,7 @@ void security_inode_free(struct inode *inode)
  * @mode: mode used to determine resource type
  * @name: name of the last path component
  * @xattr_name: name of the security/LSM xattr
- * @ctx: pointer to the resulting LSM context
- * @ctxlen: length of @ctx
+ * @lsmctx: pointer to the resulting LSM context
  *
  * Compute a context for a dentry as the inode is not yet available since NFSv4
  * has no label backed by an EA anyway.  It is important to note that
@@ -1745,11 +1744,11 @@ void security_inode_free(struct inode *inode)
  */
 int security_dentry_init_security(struct dentry *dentry, int mode,
 				  const struct qstr *name,
-				  const char **xattr_name, void **ctx,
-				  u32 *ctxlen)
+				  const char **xattr_name,
+				  struct lsm_context *lsmctx)
 {
 	return call_int_hook(dentry_init_security, dentry, mode, name,
-			     xattr_name, ctx, ctxlen);
+			     xattr_name, lsmctx);
 }
 EXPORT_SYMBOL(security_dentry_init_security);
 
@@ -2724,16 +2723,15 @@ int security_inode_listsecurity(struct inode *inode,
 EXPORT_SYMBOL(security_inode_listsecurity);
 
 /**
- * security_inode_getsecid() - Get an inode's secid
+ * security_inode_getlsmprop() - Get an inode's LSM data
  * @inode: inode
- * @secid: secid to return
+ * @prop: lsm specific information to return
  *
- * Get the secid associated with the node.  In case of failure, @secid will be
- * set to zero.
+ * Get the lsm specific information associated with the node.
  */
-void security_inode_getsecid(struct inode *inode, u32 *secid)
+void security_inode_getlsmprop(struct inode *inode, struct lsm_prop *prop)
 {
-	call_void_hook(inode_getsecid, inode, secid);
+	call_void_hook(inode_getlsmprop, inode, prop);
 }
 
 /**
@@ -3274,6 +3272,21 @@ void security_cred_getsecid(const struct cred *c, u32 *secid)
 EXPORT_SYMBOL(security_cred_getsecid);
 
 /**
+ * security_cred_getlsmprop() - Get the LSM data from a set of credentials
+ * @c: credentials
+ * @prop: destination for the LSM data
+ *
+ * Retrieve the security data of the cred structure @c.  In case of
+ * failure, @prop will be cleared.
+ */
+void security_cred_getlsmprop(const struct cred *c, struct lsm_prop *prop)
+{
+	lsmprop_init(prop);
+	call_void_hook(cred_getlsmprop, c, prop);
+}
+EXPORT_SYMBOL(security_cred_getlsmprop);
+
+/**
  * security_kernel_act_as() - Set the kernel credentials to act as secid
  * @new: credentials
  * @secid: secid
@@ -3492,33 +3505,33 @@ int security_task_getsid(struct task_struct *p)
 }
 
 /**
- * security_current_getsecid_subj() - Get the current task's subjective secid
- * @secid: secid value
+ * security_current_getlsmprop_subj() - Current task's subjective LSM data
+ * @prop: lsm specific information
  *
  * Retrieve the subjective security identifier of the current task and return
- * it in @secid.  In case of failure, @secid will be set to zero.
+ * it in @prop.
  */
-void security_current_getsecid_subj(u32 *secid)
+void security_current_getlsmprop_subj(struct lsm_prop *prop)
 {
-	*secid = 0;
-	call_void_hook(current_getsecid_subj, secid);
+	lsmprop_init(prop);
+	call_void_hook(current_getlsmprop_subj, prop);
 }
-EXPORT_SYMBOL(security_current_getsecid_subj);
+EXPORT_SYMBOL(security_current_getlsmprop_subj);
 
 /**
- * security_task_getsecid_obj() - Get a task's objective secid
+ * security_task_getlsmprop_obj() - Get a task's objective LSM data
  * @p: target task
- * @secid: secid value
+ * @prop: lsm specific information
  *
  * Retrieve the objective security identifier of the task_struct in @p and
- * return it in @secid. In case of failure, @secid will be set to zero.
+ * return it in @prop.
  */
-void security_task_getsecid_obj(struct task_struct *p, u32 *secid)
+void security_task_getlsmprop_obj(struct task_struct *p, struct lsm_prop *prop)
 {
-	*secid = 0;
-	call_void_hook(task_getsecid_obj, p, secid);
+	lsmprop_init(prop);
+	call_void_hook(task_getlsmprop_obj, p, prop);
 }
-EXPORT_SYMBOL(security_task_getsecid_obj);
+EXPORT_SYMBOL(security_task_getlsmprop_obj);
 
 /**
  * security_task_setnice() - Check if setting a task's nice value is allowed
@@ -3730,17 +3743,17 @@ int security_ipc_permission(struct kern_ipc_perm *ipcp, short flag)
 }
 
 /**
- * security_ipc_getsecid() - Get the sysv ipc object's secid
+ * security_ipc_getlsmprop() - Get the sysv ipc object LSM data
  * @ipcp: ipc permission structure
- * @secid: secid pointer
+ * @prop: pointer to lsm information
  *
- * Get the secid associated with the ipc object.  In case of failure, @secid
- * will be set to zero.
+ * Get the lsm information associated with the ipc object.
  */
-void security_ipc_getsecid(struct kern_ipc_perm *ipcp, u32 *secid)
+
+void security_ipc_getlsmprop(struct kern_ipc_perm *ipcp, struct lsm_prop *prop)
 {
-	*secid = 0;
-	call_void_hook(ipc_getsecid, ipcp, secid);
+	lsmprop_init(prop);
+	call_void_hook(ipc_getlsmprop, ipcp, prop);
 }
 
 /**
@@ -4295,21 +4308,38 @@ EXPORT_SYMBOL(security_ismaclabel);
 /**
  * security_secid_to_secctx() - Convert a secid to a secctx
  * @secid: secid
- * @secdata: secctx
- * @seclen: secctx length
+ * @cp: the LSM context
  *
- * Convert secid to security context.  If @secdata is NULL the length of the
- * result will be returned in @seclen, but no @secdata will be returned.  This
+ * Convert secid to security context.  If @cp is NULL the length of the
+ * result will be returned, but no data will be returned.  This
  * does mean that the length could change between calls to check the length and
- * the next call which actually allocates and returns the @secdata.
+ * the next call which actually allocates and returns the data.
  *
- * Return: Return 0 on success, error on failure.
+ * Return: Return length of data on success, error on failure.
  */
-int security_secid_to_secctx(u32 secid, char **secdata, u32 *seclen)
+int security_secid_to_secctx(u32 secid, struct lsm_context *cp)
 {
-	return call_int_hook(secid_to_secctx, secid, secdata, seclen);
+	return call_int_hook(secid_to_secctx, secid, cp);
 }
 EXPORT_SYMBOL(security_secid_to_secctx);
+
+/**
+ * security_lsmprop_to_secctx() - Convert a lsm_prop to a secctx
+ * @prop: lsm specific information
+ * @cp: the LSM context
+ *
+ * Convert a @prop entry to security context.  If @cp is NULL the
+ * length of the result will be returned. This does mean that the
+ * length could change between calls to check the length and the
+ * next call which actually allocates and returns the @cp.
+ *
+ * Return: Return length of data on success, error on failure.
+ */
+int security_lsmprop_to_secctx(struct lsm_prop *prop, struct lsm_context *cp)
+{
+	return call_int_hook(lsmprop_to_secctx, prop, cp);
+}
+EXPORT_SYMBOL(security_lsmprop_to_secctx);
 
 /**
  * security_secctx_to_secid() - Convert a secctx to a secid
@@ -4330,14 +4360,14 @@ EXPORT_SYMBOL(security_secctx_to_secid);
 
 /**
  * security_release_secctx() - Free a secctx buffer
- * @secdata: secctx
- * @seclen: length of secctx
+ * @cp: the security context
  *
  * Release the security context.
  */
-void security_release_secctx(char *secdata, u32 seclen)
+void security_release_secctx(struct lsm_context *cp)
 {
-	call_void_hook(release_secctx, secdata, seclen);
+	call_void_hook(release_secctx, cp);
+	memset(cp, 0, sizeof(*cp));
 }
 EXPORT_SYMBOL(security_release_secctx);
 
@@ -4400,17 +4430,17 @@ EXPORT_SYMBOL(security_inode_setsecctx);
 /**
  * security_inode_getsecctx() - Get the security label of an inode
  * @inode: inode
- * @ctx: secctx
- * @ctxlen: length of secctx
+ * @cp: security context
  *
- * On success, returns 0 and fills out @ctx and @ctxlen with the security
- * context for the given @inode.
+ * On success, returns 0 and fills out @cp with the security context
+ * for the given @inode.
  *
  * Return: Returns 0 on success, error on failure.
  */
-int security_inode_getsecctx(struct inode *inode, void **ctx, u32 *ctxlen)
+int security_inode_getsecctx(struct inode *inode, struct lsm_context *cp)
 {
-	return call_int_hook(inode_getsecctx, inode, ctx, ctxlen);
+	memset(cp, 0, sizeof(*cp));
+	return call_int_hook(inode_getsecctx, inode, cp);
 }
 EXPORT_SYMBOL(security_inode_getsecctx);
 
@@ -5570,7 +5600,7 @@ void security_audit_rule_free(void *lsmrule)
 
 /**
  * security_audit_rule_match() - Check if a label matches an audit rule
- * @secid: security label
+ * @prop: security label
  * @field: LSM audit field
  * @op: matching operator
  * @lsmrule: audit rule
@@ -5581,9 +5611,10 @@ void security_audit_rule_free(void *lsmrule)
  * Return: Returns 1 if secid matches the rule, 0 if it does not, -ERRNO on
  *         failure.
  */
-int security_audit_rule_match(u32 secid, u32 field, u32 op, void *lsmrule)
+int security_audit_rule_match(struct lsm_prop *prop, u32 field, u32 op,
+			      void *lsmrule)
 {
-	return call_int_hook(audit_rule_match, secid, field, op, lsmrule);
+	return call_int_hook(audit_rule_match, prop, field, op, lsmrule);
 }
 #endif /* CONFIG_AUDIT */
 
