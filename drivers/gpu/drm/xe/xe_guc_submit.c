@@ -717,6 +717,7 @@ guc_exec_queue_run_job(struct drm_sched_job *drm_job)
 	struct xe_exec_queue *q = job->q;
 	struct xe_guc *guc = exec_queue_to_guc(q);
 	struct xe_device *xe = guc_to_xe(guc);
+	struct dma_fence *fence = NULL;
 	bool lr = xe_exec_queue_is_lr(q);
 
 	xe_assert(xe, !(exec_queue_destroyed(q) || exec_queue_pending_disable(q)) ||
@@ -734,12 +735,12 @@ guc_exec_queue_run_job(struct drm_sched_job *drm_job)
 
 	if (lr) {
 		xe_sched_job_set_error(job, -EOPNOTSUPP);
-		return NULL;
-	} else if (test_and_set_bit(JOB_FLAG_SUBMIT, &job->fence->flags)) {
-		return job->fence;
+		dma_fence_put(job->fence);	/* Drop ref from xe_sched_job_arm */
 	} else {
-		return dma_fence_get(job->fence);
+		fence = job->fence;
 	}
+
+	return fence;
 }
 
 static void guc_exec_queue_free_job(struct drm_sched_job *drm_job)
@@ -917,11 +918,21 @@ static void xe_guc_exec_queue_lr_cleanup(struct work_struct *w)
 static bool check_timeout(struct xe_exec_queue *q, struct xe_sched_job *job)
 {
 	struct xe_gt *gt = guc_to_gt(exec_queue_to_guc(q));
-	u32 ctx_timestamp = xe_lrc_ctx_timestamp(q->lrc[0]);
-	u32 ctx_job_timestamp = xe_lrc_ctx_job_timestamp(q->lrc[0]);
+	u32 ctx_timestamp, ctx_job_timestamp;
 	u32 timeout_ms = q->sched_props.job_timeout_ms;
 	u32 diff;
 	u64 running_time_ms;
+
+	if (!xe_sched_job_started(job)) {
+		xe_gt_warn(gt, "Check job timeout: seqno=%u, lrc_seqno=%u, guc_id=%d, not started",
+			   xe_sched_job_seqno(job), xe_sched_job_lrc_seqno(job),
+			   q->guc->id);
+
+		return xe_sched_invalidate_job(job, 2);
+	}
+
+	ctx_timestamp = xe_lrc_ctx_timestamp(q->lrc[0]);
+	ctx_job_timestamp = xe_lrc_ctx_job_timestamp(q->lrc[0]);
 
 	/*
 	 * Counter wraps at ~223s at the usual 19.2MHz, be paranoid catch
@@ -1025,6 +1036,7 @@ guc_exec_queue_timedout_job(struct drm_sched_job *drm_job)
 	struct xe_guc *guc = exec_queue_to_guc(q);
 	const char *process_name = "no process";
 	struct xe_device *xe = guc_to_xe(guc);
+	unsigned int fw_ref;
 	int err = -ETIME;
 	pid_t pid = -1;
 	int i = 0;
@@ -1051,10 +1063,6 @@ guc_exec_queue_timedout_job(struct drm_sched_job *drm_job)
 		exec_queue_killed_or_banned_or_wedged(q) ||
 		exec_queue_destroyed(q);
 
-	/* Job hasn't started, can't be timed out */
-	if (!skip_timeout_check && !xe_sched_job_started(job))
-		goto rearm;
-
 	/*
 	 * If devcoredump not captured and GuC capture for the job is not ready
 	 * do manual capture first and decide later if we need to use it
@@ -1062,12 +1070,13 @@ guc_exec_queue_timedout_job(struct drm_sched_job *drm_job)
 	if (!exec_queue_killed(q) && !xe->devcoredump.captured &&
 	    !xe_guc_capture_get_matching_and_lock(job)) {
 		/* take force wake before engine register manual capture */
-		if (xe_force_wake_get(gt_to_fw(q->gt), XE_FORCEWAKE_ALL))
+		fw_ref = xe_force_wake_get(gt_to_fw(q->gt), XE_FORCEWAKE_ALL);
+		if (!xe_force_wake_ref_has_domain(fw_ref, XE_FORCEWAKE_ALL))
 			xe_gt_info(q->gt, "failed to get forcewake for coredump capture\n");
 
 		xe_engine_snapshot_capture_for_job(job);
 
-		xe_force_wake_put(gt_to_fw(q->gt), XE_FORCEWAKE_ALL);
+		xe_force_wake_put(gt_to_fw(q->gt), fw_ref);
 	}
 
 	/*
