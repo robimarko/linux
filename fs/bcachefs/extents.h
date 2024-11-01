@@ -686,9 +686,12 @@ bool bch2_extents_match(struct bkey_s_c, struct bkey_s_c);
 struct bch_extent_ptr *
 bch2_extent_has_ptr(struct bkey_s_c, struct extent_ptr_decoded, struct bkey_s);
 
-void bch2_extent_ptr_set_cached(struct bkey_s, struct bch_extent_ptr *);
+void bch2_extent_ptr_set_cached(struct bch_fs *, struct bch_io_opts *,
+				struct bkey_s, struct bch_extent_ptr *);
 
+bool bch2_extent_normalize_by_opts(struct bch_fs *, struct bch_io_opts *, struct bkey_s);
 bool bch2_extent_normalize(struct bch_fs *, struct bkey_s);
+
 void bch2_extent_ptr_to_text(struct printbuf *out, struct bch_fs *, const struct bch_extent_ptr *);
 void bch2_bkey_ptrs_to_text(struct printbuf *, struct bch_fs *,
 			    struct bkey_s_c);
@@ -708,13 +711,11 @@ static inline bool bch2_extent_ptr_eq(struct bch_extent_ptr ptr1,
 void bch2_ptr_swab(struct bkey_s);
 
 const struct bch_extent_rebalance *bch2_bkey_rebalance_opts(struct bkey_s_c);
-unsigned bch2_bkey_ptrs_need_rebalance(struct bch_fs *, struct bkey_s_c,
-				       unsigned, unsigned);
-bool bch2_bkey_needs_rebalance(struct bch_fs *, struct bkey_s_c);
+unsigned bch2_bkey_ptrs_need_rebalance(struct bch_fs *, struct bch_io_opts *, struct bkey_s_c);
 u64 bch2_bkey_sectors_need_rebalance(struct bch_fs *, struct bkey_s_c);
 
-int bch2_bkey_set_needs_rebalance(struct bch_fs *, struct bkey_i *,
-				  struct bch_io_opts *);
+bool bch2_bkey_rebalance_needs_update(struct bch_fs *, struct bch_io_opts *, struct bkey_s_c);
+int bch2_bkey_set_needs_rebalance(struct bch_fs *, struct bch_io_opts *, struct bkey_i *);
 
 /* Generic extent code: */
 
