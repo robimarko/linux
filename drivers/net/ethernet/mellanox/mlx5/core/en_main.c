@@ -1126,7 +1126,7 @@ static void mlx5e_flush_rq_cq(struct mlx5e_rq *rq)
 	struct mlx5_cqe64 *cqe;
 
 	if (test_bit(MLX5E_RQ_STATE_MINI_CQE_ENHANCED, &rq->state)) {
-		while ((cqe = mlx5_cqwq_get_cqe_enahnced_comp(cqwq)))
+		while ((cqe = mlx5_cqwq_get_cqe_enhanced_comp(cqwq)))
 			mlx5_cqwq_pop(cqwq);
 	} else {
 		while ((cqe = mlx5_cqwq_get_cqe(cqwq)))
@@ -2697,7 +2697,7 @@ static int mlx5e_open_channel(struct mlx5e_priv *priv, int ix,
 	c->aff_mask = irq_get_effective_affinity_mask(irq);
 	c->lag_port = mlx5e_enumerate_lag_port(mdev, ix);
 
-	netif_napi_add(netdev, &c->napi, mlx5e_napi_poll);
+	netif_napi_add_config(netdev, &c->napi, mlx5e_napi_poll, ix);
 	netif_napi_set_irq(&c->napi, irq);
 
 	err = mlx5e_open_queues(c, params, cparam);
@@ -4557,6 +4557,10 @@ int mlx5e_change_mtu(struct net_device *netdev, int new_mtu,
 out:
 	WRITE_ONCE(netdev->mtu, params->sw_mtu);
 	mutex_unlock(&priv->state_lock);
+
+	if (!err)
+		netdev_update_features(netdev);
+
 	return err;
 }
 
