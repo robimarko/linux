@@ -43,7 +43,11 @@
 #define UPD_BOOT_INFO_SMEM_SIZE		4096
 #define UPD_BOOT_INFO_HEADER_TYPE	0x2
 #define UPD_BOOT_INFO_SMEM_ID		507
-#define VERSION2			2
+
+enum q6_bootargs_version {
+	VERSION1 = 1,
+	VERSION2,
+};
 
 /**
  * struct userpd_boot_info_header - header of user pd bootinfo
@@ -95,6 +99,7 @@ struct userpd {
 struct wcss_data {
 	u32 pasid;
 	bool share_upd_info_to_q6;
+	u8 bootargs_version;
 };
 
 /**
@@ -299,10 +304,13 @@ static void *q6_wcss_da_to_va(struct rproc *rproc, u64 da, size_t len,
 static int share_upd_bootinfo_to_q6(struct rproc *rproc)
 {
 	int i, ret;
+	u32 rd_val;
 	size_t size;
 	u16 cnt = 0, version;
 	void *ptr;
+	u8 *bootargs_arr;
 	struct q6_wcss *wcss = rproc->priv;
+	struct device_node *np = wcss->dev->of_node;
 	struct userpd *upd;
 	struct userpd_boot_info upd_bootinfo = {0};
 	const struct firmware *fw;
@@ -324,9 +332,46 @@ static int share_upd_bootinfo_to_q6(struct rproc *rproc)
 	}
 
 	/*Version*/
-	version = VERSION2;
+	version = (wcss->desc->bootargs_version) ? wcss->desc->bootargs_version : VERSION2;
 	memcpy_toio(ptr, &version, sizeof(version));
 	ptr += sizeof(version);
+
+	cnt = ret = of_property_count_u32_elems(np, "boot-args");
+	if (ret < 0) {
+		if (ret == -ENODATA) {
+			dev_err(wcss->dev, "failed to read boot args ret:%d\n", ret);
+			return ret;
+		}
+		cnt = 0;
+	}
+
+	/* No of elements */
+	memcpy_toio(ptr, &cnt, sizeof(u16));
+	ptr += sizeof(u16);
+
+	bootargs_arr = kzalloc(cnt, GFP_KERNEL);
+	if (!bootargs_arr) {
+		dev_err(wcss->dev, "failed to allocate memory\n");
+		return PTR_ERR(bootargs_arr);
+	}
+
+	for (i = 0; i < cnt; i++) {
+		ret = of_property_read_u32_index(np, "boot-args", i, &rd_val);
+		if (ret) {
+			dev_err(wcss->dev, "failed to read boot args\n");
+			kfree(bootargs_arr);
+			return ret;
+		}
+		bootargs_arr[i] = (u8)rd_val;
+	}
+
+	/* Copy bootargs */
+	memcpy_toio(ptr, bootargs_arr, cnt);
+	ptr += (cnt);
+
+	of_node_put(np);
+	kfree(bootargs_arr);
+	cnt = 0;
 
 	for (i = 0; i < ARRAY_SIZE(wcss->upd); i++)
 		if (wcss->upd[i])
@@ -383,12 +428,14 @@ static int q6_wcss_load(struct rproc *rproc, const struct firmware *fw)
 
 	/* Share user pd boot info to Q6 remote processor */
 	if (desc->share_upd_info_to_q6) {
-		ret = share_upd_bootinfo_to_q6(rproc);
-		if (ret) {
-			dev_err(wcss->dev,
-				"user pd boot info sharing with q6 failed %d\n",
-				ret);
-			return ret;
+		if (of_property_present(wcss->dev->of_node, "boot-args")) {
+			ret = share_upd_bootinfo_to_q6(rproc);
+			if (ret) {
+				dev_err(wcss->dev,
+					"user pd boot info sharing with q6 failed %d\n",
+					ret);
+				return ret;
+			}
 		}
 	}
 
@@ -802,13 +849,15 @@ static void q6_wcss_remove(struct platform_device *pdev)
 
 static const struct wcss_data q6_ipq5018_res_init = {
 	.pasid = MPD_WCNSS_PAS_ID,
-	// .share_upd_info_to_q6 = true, /* Version 1 */
+	.share_upd_info_to_q6 = true,
+	.bootargs_version = VERSION1,
 	// .mdt_load_sec = qcom_mdt_load_pd_seg,
 };
 
 static const struct wcss_data q6_ipq5332_res_init = {
 	.pasid = MPD_WCNSS_PAS_ID,
 	.share_upd_info_to_q6 = true,
+	.bootargs_version = VERSION2,
 };
 
 static const struct wcss_data q6_ipq9574_res_init = {
