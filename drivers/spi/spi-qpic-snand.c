@@ -1200,64 +1200,64 @@ static int qcom_spi_program_execute(struct qcom_nand_controller *snandc,
 	return 0;
 }
 
-static int qcom_spi_cmd_mapping(struct qcom_nand_controller *snandc, u32 opcode)
+static int qcom_spi_cmd_mapping(struct qcom_nand_controller *snandc, u32 opcode,
+				u32 *cmd)
 {
-	int cmd = 0x0;
-
 	switch (opcode) {
 	case SPINAND_RESET:
-		cmd = (SPI_WP | SPI_HOLD | SPI_TRANSFER_MODE_x1 | OP_RESET_DEVICE);
+		*cmd = (SPI_WP | SPI_HOLD | SPI_TRANSFER_MODE_x1 | OP_RESET_DEVICE);
 		break;
 	case SPINAND_READID:
-		cmd = (SPI_WP | SPI_HOLD | SPI_TRANSFER_MODE_x1 | OP_FETCH_ID);
+		*cmd = (SPI_WP | SPI_HOLD | SPI_TRANSFER_MODE_x1 | OP_FETCH_ID);
 		break;
 	case SPINAND_GET_FEATURE:
-		cmd = (SPI_TRANSFER_MODE_x1 | SPI_WP | SPI_HOLD | ACC_FEATURE);
+		*cmd = (SPI_TRANSFER_MODE_x1 | SPI_WP | SPI_HOLD | ACC_FEATURE);
 		break;
 	case SPINAND_SET_FEATURE:
-		cmd = (SPI_TRANSFER_MODE_x1 | SPI_WP | SPI_HOLD | ACC_FEATURE |
+		*cmd = (SPI_TRANSFER_MODE_x1 | SPI_WP | SPI_HOLD | ACC_FEATURE |
 			QPIC_SET_FEATURE);
 		break;
 	case SPINAND_READ:
 		if (snandc->qspi->raw_rw) {
-			cmd = (PAGE_ACC | LAST_PAGE | SPI_TRANSFER_MODE_x1 |
+			*cmd = (PAGE_ACC | LAST_PAGE | SPI_TRANSFER_MODE_x1 |
 					SPI_WP | SPI_HOLD | OP_PAGE_READ);
 		} else {
-			cmd = (PAGE_ACC | LAST_PAGE | SPI_TRANSFER_MODE_x1 |
+			*cmd = (PAGE_ACC | LAST_PAGE | SPI_TRANSFER_MODE_x1 |
 					SPI_WP | SPI_HOLD | OP_PAGE_READ_WITH_ECC);
 		}
 
 		break;
 	case SPINAND_ERASE:
-		cmd = OP_BLOCK_ERASE | PAGE_ACC | LAST_PAGE | SPI_WP |
+		*cmd = OP_BLOCK_ERASE | PAGE_ACC | LAST_PAGE | SPI_WP |
 			SPI_HOLD | SPI_TRANSFER_MODE_x1;
 		break;
 	case SPINAND_WRITE_EN:
-		cmd = SPINAND_WRITE_EN;
+		*cmd = SPINAND_WRITE_EN;
 		break;
 	case SPINAND_PROGRAM_EXECUTE:
-		cmd = (PAGE_ACC | LAST_PAGE | SPI_TRANSFER_MODE_x1 |
+		*cmd = (PAGE_ACC | LAST_PAGE | SPI_TRANSFER_MODE_x1 |
 				SPI_WP | SPI_HOLD | OP_PROGRAM_PAGE);
 		break;
 	case SPINAND_PROGRAM_LOAD:
-		cmd = SPINAND_PROGRAM_LOAD;
+		*cmd = SPINAND_PROGRAM_LOAD;
 		break;
 	default:
 		dev_err(snandc->dev, "Opcode not supported: %u\n", opcode);
 		return -EOPNOTSUPP;
 	}
 
-	return cmd;
+	return 0;
 }
 
 static int qcom_spi_write_page(struct qcom_nand_controller *snandc,
 			       const struct spi_mem_op *op)
 {
-	int cmd;
+	u32 cmd;
+	int ret;
 
-	cmd = qcom_spi_cmd_mapping(snandc, op->cmd.opcode);
-	if (cmd < 0)
-		return cmd;
+	ret = qcom_spi_cmd_mapping(snandc, op->cmd.opcode, &cmd);
+	if (ret < 0)
+		return ret;
 
 	if (op->cmd.opcode == SPINAND_PROGRAM_LOAD)
 		snandc->qspi->data_buf = (u8 *)op->data.buf.out;
@@ -1272,11 +1272,9 @@ static int qcom_spi_send_cmdaddr(struct qcom_nand_controller *snandc,
 	u32 cmd;
 	int ret, opcode;
 
-	ret = qcom_spi_cmd_mapping(snandc, op->cmd.opcode);
+	ret = qcom_spi_cmd_mapping(snandc, op->cmd.opcode, &cmd);
 	if (ret < 0)
 		return ret;
-
-	cmd = ret;
 
 	s_op.cmd_reg = cmd;
 	s_op.addr1_reg = op->addr.val;
