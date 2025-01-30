@@ -926,6 +926,22 @@ static int rtl822xb_config_init(struct phy_device *phydev)
 	return 0;
 }
 
+static int rtl822xb_config_init_war(struct phy_device *phydev)
+{
+	int ret;
+
+	ret = rtl822xb_config_init(phydev);
+
+	if (ret == -ETIMEDOUT) {
+		phydev_warn(phydev, "SerDes setup timed out, retrying\n");
+		phy_device_reset(phydev, 1);
+		phy_device_reset(phydev, 0);
+		ret = rtl822xb_config_init(phydev);
+	}
+
+	return ret;
+}
+
 static int rtl822xb_get_rate_matching(struct phy_device *phydev,
 				      phy_interface_t iface)
 {
@@ -1609,7 +1625,7 @@ static struct phy_driver realtek_drvs[] = {
 		.handle_interrupt = rtl8221b_handle_interrupt,
 		.soft_reset     = genphy_soft_reset,
 		.probe		= rtl822x_probe,
-		.config_init    = rtl822xb_config_init,
+		.config_init    = rtl822xb_config_init_war,
 		.get_rate_matching = rtl822xb_get_rate_matching,
 		.get_features   = rtl822x_c45_get_features,
 		.config_aneg    = rtl822x_c45_config_aneg,
@@ -1639,7 +1655,7 @@ static struct phy_driver realtek_drvs[] = {
 		.handle_interrupt = rtl8221b_handle_interrupt,
 		.soft_reset     = genphy_soft_reset,
 		.probe		= rtl822x_probe,
-		.config_init    = rtl822xb_config_init,
+		.config_init    = rtl822xb_config_init_war,
 		.get_rate_matching = rtl822xb_get_rate_matching,
 		.get_features   = rtl822x_c45_get_features,
 		.config_aneg    = rtl822x_c45_config_aneg,
