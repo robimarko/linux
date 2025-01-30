@@ -852,6 +852,11 @@ static int rtl822xb_config_init(struct phy_device *phydev)
 			     phydev->host_interfaces) ||
 		    phydev->interface == PHY_INTERFACE_MODE_SGMII;
 
+	/* disable listening on MDIO broadcast address (0) */
+	ret = phy_clear_bits_mmd(phydev, MDIO_MMD_VEND2, 0xa430, BIT(13));
+	if (ret < 0)
+		return ret;
+
 	/* fill in possible interfaces */
 	__assign_bit(PHY_INTERFACE_MODE_2500BASEX, phydev->possible_interfaces,
 		     has_2500);
