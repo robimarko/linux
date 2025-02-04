@@ -147,7 +147,7 @@ static int ppe_clock_init_and_reset(struct ppe_device *ppe_dev)
 	if (ret)
 		return ret;
 
-	ret = devm_clk_bulk_get_all_enable(dev, &clks);
+	ret = devm_clk_bulk_get_all_enabled(dev, &clks);
 	if (ret < 0)
 		return ret;
 
