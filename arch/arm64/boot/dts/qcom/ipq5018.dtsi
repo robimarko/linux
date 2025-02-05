@@ -111,6 +111,11 @@
 		#size-cells = <2>;
 		ranges;
 
+		tz_apps@4a400000 {
+			reg = <0x0 0x4a400000 0x0 0x400000>;
+			no-map;
+		};
+
 		bootloader@4a800000 {
 			reg = <0x0 0x4a800000 0x0 0x200000>;
 			no-map;
