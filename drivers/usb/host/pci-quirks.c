@@ -130,6 +130,8 @@ struct amd_chipset_type {
 	u8 rev;
 };
 
+#ifndef CONFIG_PCI_DISABLE_COMMON_QUIRKS
+
 static struct amd_chipset_info {
 	struct pci_dev	*nb_dev;
 	struct pci_dev	*smbus_dev;
@@ -590,6 +592,8 @@ bool usb_amd_pt_check_port(struct device *device, int port)
 EXPORT_SYMBOL_GPL(usb_amd_pt_check_port);
 #endif /* CONFIG_USB_PCI_AMD */
 
+#endif /* CONFIG_PCI_DISABLE_COMMON_QUIRKS */
+
 static int usb_asmedia_wait_write(struct pci_dev *pdev)
 {
 	unsigned long retry_count;
@@ -724,6 +728,10 @@ reset_needed:
 	return 1;
 }
 EXPORT_SYMBOL_GPL(uhci_check_and_reset_hc);
+#endif
+
+#ifndef CONFIG_PCI_DISABLE_COMMON_QUIRKS
+#if defined(CONFIG_HAS_IOPORT) && IS_ENABLED(CONFIG_USB_UHCI_HCD)
 
 #define pio_enabled(dev) io_type_enabled(dev, PCI_COMMAND_IO)
 
@@ -1304,3 +1312,4 @@ static void quirk_usb_early_handoff(struct pci_dev *pdev)
 }
 DECLARE_PCI_FIXUP_CLASS_FINAL(PCI_ANY_ID, PCI_ANY_ID,
 			PCI_CLASS_SERIAL_USB, 8, quirk_usb_early_handoff);
+#endif
