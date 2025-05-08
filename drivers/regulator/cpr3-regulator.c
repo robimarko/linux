@@ -2411,14 +2411,14 @@ static int cpr3_regulator_wait_for_idle(struct cpr3_controller *ctrl,
 }
 
 /**
- * cmp_int() - int comparison function to be passed into the sort() function
+ * cpr_cmp_int() - int comparison function to be passed into the sort() function
  *		which leads to ascending sorting
  * @a:			First int value
  * @b:			Second int value
  *
  * Return: >0 if a > b, 0 if a == b, <0 if a < b
  */
-static int cmp_int(const void *a, const void *b)
+static int cpr_cmp_int(const void *a, const void *b)
 {
 	return *(int *)a - *(int *)b;
 }
@@ -2597,7 +2597,7 @@ static int cpr3_regulator_measure_aging(struct cpr3_controller *ctrl,
 		= aging_measurement_count - CPR3_AGING_MEASUREMENT_FILTER * 2;
 	if (filtered_count > 0) {
 		sort(quot_delta_results, aging_measurement_count,
-			sizeof(*quot_delta_results), cmp_int, NULL);
+			sizeof(*quot_delta_results), cpr_cmp_int, NULL);
 
 		quot_delta_scaled_sum = 0;
 		for (i = 0; i < filtered_count; i++)
