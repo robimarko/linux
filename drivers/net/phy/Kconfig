@@ -434,6 +434,8 @@ config QSEMI_PHY
 
 source "drivers/net/phy/realtek/Kconfig"
 
+source "drivers/net/phy/rtl8261n/Kconfig"
+
 config RENESAS_PHY
 	tristate "Renesas PHYs"
 	help
