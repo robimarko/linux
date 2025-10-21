@@ -20,6 +20,7 @@
 #define MPD_WCSS_PAS_ID			0xd
 
 #define Q6_WAIT_TIMEOUT			(5 * HZ)
+#define MAX_FIRMWARE			3
 
 struct wcss_sec {
 	struct device *dev;
@@ -31,6 +32,7 @@ struct wcss_sec {
 	void *mem_region;
 	size_t mem_size;
 	const struct wcss_data *desc;
+	const char **firmware;
 };
 
 struct wcss_data {
@@ -110,12 +112,33 @@ static int wcss_sec_load(struct rproc *rproc, const struct firmware *fw)
 {
 	struct wcss_sec *wcss = rproc->priv;
 	struct device *dev = wcss->dev;
-	int ret;
+	const struct firmware *fw_hdl;
+	int i, ret;
 
 	ret = qcom_mdt_load(dev, fw, rproc->firmware, wcss->desc->pasid, wcss->mem_region,
 			    wcss->mem_phys, wcss->mem_size, &wcss->mem_reloc);
 	if (ret)
 		return ret;
+
+	for (i = 1; i < MAX_FIRMWARE; i++) {
+		if (!wcss->firmware[i])
+			continue;
+
+		ret = request_firmware(&fw_hdl, wcss->firmware[i], dev);
+		if (ret)
+			continue;
+
+		ret = qcom_mdt_load_no_init(dev, fw_hdl, wcss->firmware[i],
+					    wcss->mem_region, wcss->mem_phys,
+					    wcss->mem_size, &wcss->mem_reloc);
+		release_firmware(fw_hdl);
+
+		if (ret) {
+			dev_err(dev, "error %d loading firmware %s\n",
+				ret, wcss->firmware[i]);
+			return ret;
+		}
+	}
 
 	qcom_pil_info_store("wcss", wcss->mem_phys, wcss->mem_size);
 
@@ -233,20 +256,25 @@ static int wcss_sec_alloc_memory_region(struct wcss_sec *wcss)
 static int wcss_sec_probe(struct platform_device *pdev)
 {
 	const struct wcss_data *desc = of_device_get_match_data(&pdev->dev);
-	const char *fw_name = NULL;
+	const char **firmware;
 	struct wcss_sec *wcss;
 	struct clk *sleep_clk;
 	struct clk *int_clk;
 	struct rproc *rproc;
 	int ret;
 
-	ret = of_property_read_string(pdev->dev.of_node, "firmware-name",
-				      &fw_name);
-	if (ret < 0)
-		return ret;
+	firmware = devm_kcalloc(&pdev->dev, MAX_FIRMWARE,
+				sizeof(*firmware), GFP_KERNEL);
+	if (!firmware)
+		return -ENOMEM;
+
+	ret = of_property_read_string_array(pdev->dev.of_node, "firmware-name",
+					    firmware, MAX_FIRMWARE);
+	if (ret < 1)
+		return ret < 0 ? ret : -EINVAL;
 
 	rproc = devm_rproc_alloc(&pdev->dev, desc->ss_name, &wcss_sec_ops,
-				 fw_name, sizeof(*wcss));
+				 firmware[0], sizeof(*wcss));
 	if (!rproc) {
 		dev_err(&pdev->dev, "failed to allocate rproc\n");
 		return -ENOMEM;
@@ -255,6 +283,7 @@ static int wcss_sec_probe(struct platform_device *pdev)
 	wcss = rproc->priv;
 	wcss->dev = &pdev->dev;
 	wcss->desc = desc;
+	wcss->firmware = firmware;
 
 	ret = wcss_sec_alloc_memory_region(wcss);
 	if (ret)
