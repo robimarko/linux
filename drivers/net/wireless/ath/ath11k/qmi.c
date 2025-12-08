@@ -2038,8 +2038,8 @@ static int ath11k_qmi_alloc_target_mem_chunk(struct ath11k_base *ab)
 
 static int ath11k_qmi_assign_target_mem_chunk(struct ath11k_base *ab)
 {
+	struct resource res = DEFINE_RES_NAMED(0, 0, NULL, IORESOURCE_UNSET);
 	struct device *dev = ab->dev;
-	struct resource res = {};
 	u32 host_ddr_sz;
 	int i, idx, ret;
 
@@ -2085,7 +2085,7 @@ static int ath11k_qmi_assign_target_mem_chunk(struct ath11k_base *ab)
 			}
 
 			if (ath11k_core_coldboot_cal_support(ab)) {
-				if (resource_size(&res)) {
+				if (res.flags != IORESOURCE_UNSET) {
 					ab->qmi.target_mem[idx].paddr =
 							res.start + host_ddr_sz;
 					ab->qmi.target_mem[idx].iaddr =
