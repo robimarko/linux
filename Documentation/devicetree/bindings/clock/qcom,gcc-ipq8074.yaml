@@ -32,6 +32,12 @@ properties:
       - description: Gen2 QMP PCIe PHY PIPE clock
       - description: 300 MHz bias clock from CMN PLL
       - description: 461.5 MHz NSS NoC bias clock from CMN PLL
+      - description: UNIPHY0 RX clock
+      - description: UNIPHY0 TX clock
+      - description: UNIPHY1 RX clock
+      - description: UNIPHY1 TX clock
+      - description: UNIPHY2 RX clock
+      - description: UNIPHY2 TX clock
 
   clock-names:
     minItems: 4
@@ -42,6 +48,12 @@ properties:
       - const: pcie1_pipe
       - const: bias_pll_cc
       - const: bias_pll_nss_noc
+      - const: uniphy0_gcc_rx_clk
+      - const: uniphy0_gcc_tx_clk
+      - const: uniphy1_gcc_rx_clk
+      - const: uniphy1_gcc_tx_clk
+      - const: uniphy2_gcc_rx_clk
+      - const: uniphy2_gcc_tx_clk
 
 required:
   - compatible

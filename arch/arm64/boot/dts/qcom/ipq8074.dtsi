@@ -6,6 +6,7 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/qcom,gcc-ipq8074.h>
 #include <dt-bindings/clock/qcom,ipq8074-cmn-pll.h>
+#include <dt-bindings/net/qca-uniphy.h>
 
 / {
 	#address-cells = <2>;
@@ -436,13 +437,25 @@
 				 <&pcie_qmp0>,
 				 <&pcie_qmp1>,
 				 <&cmn_pll IPQ8074_BIAS_PLL_CC_CLK>,
-				 <&cmn_pll IPQ8074_BIAS_PLL_NSS_NOC_CLK>;
+				 <&cmn_pll IPQ8074_BIAS_PLL_NSS_NOC_CLK>,
+				 <&uniphy0 UNIPHY_CLK_RX>,
+				 <&uniphy0 UNIPHY_CLK_TX>,
+				 <&uniphy1 UNIPHY_CLK_RX>,
+				 <&uniphy1 UNIPHY_CLK_TX>,
+				 <&uniphy2 UNIPHY_CLK_RX>,
+				 <&uniphy2 UNIPHY_CLK_TX>;
 			clock-names = "xo",
 				      "sleep_clk",
 				      "pcie0_pipe",
 				      "pcie1_pipe",
 				      "bias_pll_cc",
-				      "bias_pll_nss_noc";
+				      "bias_pll_nss_noc",
+				      "uniphy0_gcc_rx_clk",
+				      "uniphy0_gcc_tx_clk",
+				      "uniphy1_gcc_rx_clk",
+				      "uniphy1_gcc_tx_clk",
+				      "uniphy2_gcc_rx_clk",
+				      "uniphy2_gcc_tx_clk";
 			#clock-cells = <1>;
 			#power-domain-cells = <1>;
 			#reset-cells = <1>;
