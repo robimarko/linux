@@ -150,6 +150,7 @@ properties:
               - qcom,ipq8074-hk01
               - qcom,ipq8074-hk10-c1
               - qcom,ipq8074-hk10-c2
+              - qnap,301w
           - const: qcom,ipq8074
 
       - items:
