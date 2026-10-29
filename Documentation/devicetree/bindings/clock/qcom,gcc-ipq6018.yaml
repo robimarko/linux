@@ -27,14 +27,20 @@ properties:
     const: qcom,gcc-ipq6018
 
   clocks:
+    minItems: 2
     items:
       - description: board XO clock
       - description: sleep clock
+      - description: 300 MHz bias clock from CMN PLL
+      - description: 416.5 MHz NSS NoC bias clock from CMN PLL
 
   clock-names:
+    minItems: 2
     items:
       - const: xo
       - const: sleep_clk
+      - const: bias_pll_cc
+      - const: bias_pll_nss_noc
 
   '#power-domain-cells': false
 
