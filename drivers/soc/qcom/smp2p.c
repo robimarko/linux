@@ -341,6 +341,10 @@ static void qcom_smp2p_notify_in(struct qcom_smp2p *smp2p)
 
 		trace_smp2p_notify_in(entry, status, val);
 
+		/* Q6 needs a kick to renegotiate SMP2P after restarting. */
+		if (val == 0)
+			qcom_smp2p_kick(smp2p);
+
 		/* No changes of this entry? */
 		if (!status)
 			continue;
