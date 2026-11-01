@@ -128,6 +128,7 @@ struct smp2p_entry {
  * @ssr_ack_enabled: SMP2P_FEATURE_SSR_ACK feature is supported and was enabled
  * @ssr_ack: current cached state of the local ack bit
  * @negotiation_done: whether negotiating finished
+ * @wcss_restart_kick: kick WCSS when an inbound entry returns to zero
  * @local_pid:	processor id of the inbound edge
  * @remote_pid:	processor id of the outbound edge
  * @ipc_regmap:	regmap for the outbound ipc
@@ -151,6 +152,7 @@ struct qcom_smp2p {
 	bool ssr_ack_enabled;
 	bool ssr_ack;
 	bool negotiation_done;
+	bool wcss_restart_kick;
 
 	unsigned local_pid;
 	unsigned remote_pid;
@@ -340,6 +342,10 @@ static void qcom_smp2p_notify_in(struct qcom_smp2p *smp2p)
 		entry->last_value = val;
 
 		trace_smp2p_notify_in(entry, status, val);
+
+		/* Some WCSS firmware needs a kick after restarting. */
+		if (smp2p->wcss_restart_kick && val == 0)
+			qcom_smp2p_kick(smp2p);
 
 		/* No changes of this entry? */
 		if (!status)
@@ -681,6 +687,8 @@ static int qcom_smp2p_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	smp2p->dev = &pdev->dev;
+	smp2p->wcss_restart_kick =
+		of_property_read_bool(pdev->dev.of_node, "qcom,wcss-restart-kick");
 	INIT_LIST_HEAD(&smp2p->inbound);
 	INIT_LIST_HEAD(&smp2p->outbound);
 
