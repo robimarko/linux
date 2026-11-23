@@ -2472,7 +2472,7 @@ static void qcom_scm_gunyah_wdt_init(struct qcom_scm *scm)
 	gunyah_wdt_dev = platform_device_register_simple("gunyah-wdt", -1,
 							 NULL, 0);
 	if (IS_ERR(gunyah_wdt_dev)) {
-		dev_err(scm->dev, "Failed to register Gunyah watchdog device: %pe\n",
+		dev_err(scm->dev, "Failed to register Gunyah watchdog device: %ld\n",
 			PTR_ERR(gunyah_wdt_dev));
 		return;
 	}
