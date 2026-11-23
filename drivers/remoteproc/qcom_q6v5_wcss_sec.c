@@ -259,6 +259,7 @@ static int wcss_sec_probe(struct platform_device *pdev)
 	const char **firmware;
 	struct wcss_sec *wcss;
 	struct clk *sleep_clk;
+	struct clk *prng_clk;
 	struct clk *int_clk;
 	struct rproc *rproc;
 	int ret;
@@ -298,6 +299,11 @@ static int wcss_sec_probe(struct platform_device *pdev)
 	if (IS_ERR(int_clk))
 		return dev_err_probe(&pdev->dev, PTR_ERR(int_clk),
 				     "Failed to get interconnect clock\n");
+
+	prng_clk = devm_clk_get_optional_enabled(&pdev->dev, "prng");
+	if (IS_ERR(prng_clk))
+		return dev_err_probe(&pdev->dev, PTR_ERR(prng_clk),
+				     "Failed to get prng clock\n");
 
 	ret = qcom_q6v5_init(&wcss->q6, pdev, rproc,
 			     WCSS_CRASH_REASON, NULL, NULL);
@@ -347,6 +353,7 @@ static const struct wcss_data wcss_sec_ipq9574_res_init = {
 static const struct of_device_id wcss_sec_of_match[] = {
 	{ .compatible = "qcom,ipq5018-wcss-sec-pil", .data = &wcss_sec_ipq5332_res_init },
 	{ .compatible = "qcom,ipq5332-wcss-sec-pil", .data = &wcss_sec_ipq5332_res_init },
+	{ .compatible = "qcom,ipq8074-wcss-sec-pil", .data = &wcss_sec_ipq9574_res_init },
 	{ .compatible = "qcom,ipq9574-wcss-sec-pil", .data = &wcss_sec_ipq9574_res_init },
 	{ },
 };
