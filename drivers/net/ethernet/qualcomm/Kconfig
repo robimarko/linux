@@ -47,6 +47,13 @@ config QCA7000_UART
 	  To compile this driver as a module, choose M here. The module
 	  will be called qcauart.
 
+config QCOM_EDMA
+	tristate "EDMA dataplane ethernet driver for Qualcomm IPQ platforms"
+	depends on ARCH_QCOM || COMPILE_TEST
+	select PAGE_POOL
+	help
+	  EDMA dataplane ethernet driver for Qualcomm IPQ platforms.
+
 config QCOM_EMAC
 	tristate "Qualcomm EMAC Gigabit Ethernet support"
 	depends on HAS_DMA && HAS_IOMEM
