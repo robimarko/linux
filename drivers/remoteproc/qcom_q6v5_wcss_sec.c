@@ -79,10 +79,6 @@ static int wcss_sec_stop(struct rproc *rproc)
 	struct device *dev = wcss->dev;
 	int ret;
 
-	ret = qcom_q6v5_request_stop(&wcss->q6, NULL);
-	if (ret == -ETIMEDOUT)
-		dev_err(dev, "timed out on wait\n");
-
 	ret = qcom_pas_shutdown(wcss->desc->pasid);
 	if (ret)
 		dev_err(dev, "Failed to shutdown %d\n", ret);
