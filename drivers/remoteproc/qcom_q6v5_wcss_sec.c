@@ -57,7 +57,7 @@ static int wcss_sec_start(struct rproc *rproc)
 		goto unprepare;
 	}
 
-	ret = qcom_q6v5_wait_for_start(&wcss->q6, msecs_to_jiffies(Q6_WAIT_TIMEOUT));
+	ret = qcom_q6v5_wait_for_start(&wcss->q6, Q6_WAIT_TIMEOUT);
 
 	if (ret == -ETIMEDOUT) {
 		dev_err(dev, "start timed out\n");
