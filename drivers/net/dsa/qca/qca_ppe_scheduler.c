@@ -3822,7 +3822,8 @@ static int ppe_cpu_port_dl_set(struct qca_ppe_priv *priv, u64 rate_bps)
 }
 
 static int ppe_cpu_port_rate_get(struct devlink *dl, u32 id,
-				 struct devlink_param_gset_ctx *ctx)
+				 struct devlink_param_gset_ctx *ctx,
+				 struct netlink_ext_ack *extack)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(dsa_devlink_to_ds(dl));
 
@@ -3848,7 +3849,8 @@ enum {
 };
 
 static int ppe_uplink_param_get(struct devlink *dl, u32 id,
-				struct devlink_param_gset_ctx *ctx)
+				struct devlink_param_gset_ctx *ctx,
+				struct netlink_ext_ack *extack)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(dsa_devlink_to_ds(dl));
 
@@ -3866,7 +3868,8 @@ static int ppe_uplink_param_set(struct devlink *dl, u32 id,
 }
 
 static int ppe_ct_dscp_get(struct devlink *dl, u32 id,
-			   struct devlink_param_gset_ctx *ctx)
+			   struct devlink_param_gset_ctx *ctx,
+			   struct netlink_ext_ack *extack)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(dsa_devlink_to_ds(dl));
 
@@ -3885,7 +3888,8 @@ static int ppe_ct_dscp_set(struct devlink *dl, u32 id,
 }
 
 static int ppe_shaper_get(struct devlink *dl, u32 id,
-			  struct devlink_param_gset_ctx *ctx)
+			  struct devlink_param_gset_ctx *ctx,
+			  struct netlink_ext_ack *extack)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(dsa_devlink_to_ds(dl));
 
@@ -3905,10 +3909,10 @@ static int ppe_shaper_set(struct devlink *dl, u32 id,
 }
 
 static int ppe_shaper_validate(struct devlink *dl, u32 id,
-			       union devlink_param_value val,
+			       union devlink_param_value *val,
 			       struct netlink_ext_ack *extack)
 {
-	if (strnlen(val.vstr, sizeof(val.vstr)) >= IFNAMSIZ) {
+	if (strnlen(val->vstr, sizeof(val->vstr)) >= IFNAMSIZ) {
 		NL_SET_ERR_MSG_MOD(extack, "not a device name");
 		return -EINVAL;
 	}
