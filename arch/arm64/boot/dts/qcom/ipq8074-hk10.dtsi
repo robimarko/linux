@@ -5,6 +5,7 @@
 /dts-v1/;
 
 #include "ipq8074.dtsi"
+#include "ipq8074-ess.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 
 / {
