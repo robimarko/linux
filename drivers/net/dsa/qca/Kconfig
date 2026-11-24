@@ -24,3 +24,14 @@ config NET_DSA_QCA8K_LEDS_SUPPORT
 	help
 	  This enabled support for LEDs present on the Qualcomm Atheros
 	  QCA8K Ethernet switch chips.
+
+config NET_DSA_QCOM_80211AX_PPE
+	tristate "Qualcomm 802.11ax PPE switch driver"
+	depends on NET_DSA && QCOM_EDMA
+	select NET_DSA_TAG_QCA
+	select PCS_QCA_UNIPHY
+	select PHYLINK
+	select REGMAP_MMIO
+	select NET_REDIRECT
+	help
+	  Driver for Qualcomm 802.11ax PPE (Packet Processing Engine) switches.
