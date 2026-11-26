@@ -59,6 +59,14 @@ properties:
     description:
       Two identifiers of the inbound and outbound smem items used for this edge.
 
+  qcom,wcss-restart-kick:
+    type: boolean
+    description:
+      IPQ8074 and IPQ6018 WCSS firmware need another outgoing doorbell when
+      the inbound entry returns to zero during a remote processor restart.
+      Without this kick, WCSS does not raise the ready indication for the
+      next boot.
+
 patternProperties:
   "^master-kernel|slave-kernel|ipa-ap-to-modem|ipa-modem-to-ap|sleepstate|wlan-ap-to-wpss|wlan-wpss-to-ap$":
     type: object
