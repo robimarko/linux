@@ -4,6 +4,9 @@ START=99
 
 boot() {
 	case $(board_name) in
+	edgecore,oap101)
+		fw_setenv bootcount 0
+	;;
 	linksys,mr2000|\
 	linksys,mr5500|\
 	linksys,mx2000|\

@@ -122,6 +122,20 @@ define Device/cmcc_rax3000q
 endef
 TARGET_DEVICES += cmcc_rax3000q
 
+define Device/edgecore_oap101
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	DEVICE_VENDOR := Edgecore
+	DEVICE_MODEL := OAP101
+	DEVICE_DTS_CONFIG := config@mp03.5-c1
+	SOC := ipq5018
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	DEVICE_PACKAGES := kmod-hwmon-tmp102 kmod-gpio-pca953x kmod-tpm-tis-i2c \
+		ipq-wifi-edgecore_oap101 ath11k-firmware-ipq5018-qcn6122
+endef
+TARGET_DEVICES += edgecore_oap101
+
 define Device/elecom_wrc-x3000gs2
 	$(call Device/FitImageLzma)
 	DEVICE_VENDOR := ELECOM
