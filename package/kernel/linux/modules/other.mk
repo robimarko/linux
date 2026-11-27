@@ -1184,6 +1184,24 @@ endef
 
 $(eval $(call KernelPackage,tpm-tis-spi))
 
+define KernelPackage/tpm-tis-i2c
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=TPM TIS 1.3 Interface I2C Interface
+  DEPENDS:= +kmod-tpm-tis +kmod-i2c-core +kmod-lib-crc-ccitt
+  KCONFIG:= CONFIG_TCG_TIS_I2C
+  FILES:= \
+  $(LINUX_DIR)/drivers/char/tpm/tpm_tis_i2c.ko
+  AUTOLOAD:=$(call AutoLoad,20,tpm_tis_i2c,1)
+endef
+
+define KernelPackage/tpm-tis-i2c/description
+  If you have a TPM security chip, compliant with the TCG TPM PTP
+  (I2C interface) specification and connected to an I2C bus master,
+  say Yes and it will be accessible from within Linux.
+endef
+
+$(eval $(call KernelPackage,tpm-tis-i2c))
+
 define KernelPackage/tpm-i2c-atmel
   SUBMENU:=$(OTHER_MENU)
   TITLE:=TPM I2C Atmel Support
